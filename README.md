@@ -6,12 +6,13 @@ This application is an unofficial port inspired by the [yoinks](https://github.c
 
 ## Features
 
+- **Universal Music Search:** Type a song name (e.g. "Mac Miller Stay") to instantly search Spotify and extract original FLAC/MP3 files.
 - **Zero-Config Extraction:** Paste a URL, execute, and enjoy.
-- **Multi-Platform Support:** Works with YouTube, X (Twitter), Instagram, Threads, TikTok, and more.
-- **Format Control:** Extract MP4 (Video) or MP3 (Audio).
+- **Multi-Platform Support:** Works with Spotify, YouTube, X (Twitter), Instagram, Threads, TikTok, and more.
+- **Format Control:** Extract MP4 (Video) or MP3/Audio.
 - **Quality Engine:** Toggle between MAX, MID, and LOW outputs to save bandwidth.
 - **Native Routing:** Save directly to Android's native `Downloads`, `Music`, or `Movies` directories.
-- **Terminal Aesthetic:** Pure monochromatic UI (`#000000` & `#FFFFFF`).
+- **Pale Azure Aesthetic:** A beautiful monochromatic UI blending Rich Black (`#000F0F`) and Pale Azure (`#68C7EC`).
 
 ## Architecture
 
@@ -34,6 +35,20 @@ This app bypasses the need for NodeJS/Chaquopy by utilizing a custom Kotlin brid
 1. Go to the **Releases** tab on this repository.
 2. Download the latest `Yoink-OpenCode-vX.X.apk`.
 3. Install the APK on your Android device.
+
+
+### Spotify Search Setup (For Developers)
+
+If you are compiling this app from source, you need to provide Spotify API credentials for the universal search to work:
+
+1. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+2. Create an App and get your `Client ID` and `Client Secret`.
+3. Create a `.env` file in the root of the project:
+```env
+EXPO_PUBLIC_SPOTIFY_CLIENT_ID=your_client_id_here
+EXPO_PUBLIC_SPOTIFY_CLIENT_SECRET=your_client_secret_here
+```
+4. Build the app as usual.
 
 ## Usage
 

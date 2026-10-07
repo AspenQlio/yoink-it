@@ -4,6 +4,22 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 
 ## Unreleased
 
+## [5.0.0] - 2026-10-07
+
+### Added
+- Universal Music Search: The app now supports free-text search for songs (e.g., "Mac Miller Stay") resolving directly via the Spotify API.
+- Support for Spotify tracks, albums, and playlists by extracting metadata and mapping it to high-quality audio downloads.
+- Introduced a new "Pale Azure" (`#68C7EC`) and "Rich Black" (`#000F0F`) aesthetic, replacing the pure monochrome UI.
+
+### Changed
+- Replaced the "SLIDES" hardcoded text with dynamic labels ("TRACKS", "IMAGES", "MEDIA") depending on the content type.
+- Updated the embedded Kotlin bridge to bypass YouTube's recent `HTTP Error 403 / SABR` streaming blocks by spoofing Smart TV and Creator clients.
+
+### Fixed
+- Fixed a major `[Errno 1] Operation not permitted` crash on Android 11+ by properly injecting `MANAGE_EXTERNAL_STORAGE` and explicit R/W permissions into the AndroidManifest.
+- Prevented the "success" message from being instantly wiped off the screen when downloads finish.
+
+
 ## [4.0.0] - 2026-10-04
 
 ### Added
