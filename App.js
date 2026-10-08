@@ -10,7 +10,6 @@ export default function App() {
   const [url, setUrl] = useState('');
   const [status, setStatus] = useState('> system init...');
   const [isLoading, setIsLoading] = useState(false);
-  const [dlProgress, setDlProgress] = useState(null);
   const [isReady, setIsReady] = useState(false);
 
   // User selections
@@ -24,6 +23,10 @@ export default function App() {
   const [picked, setPicked] = useState([]);
   const [variantOf, setVariantOf] = useState({});
 
+  // Queue state
+  const [queue, setQueue] = useState([]);
+  const [activeJobId, setActiveJobId] = useState(null);
+
   const isImage = mediaType === 'image';
   const isVideo = mediaType === 'video';
 
@@ -35,14 +38,51 @@ export default function App() {
     setFormat('mp4');
   };
 
-  
   useEffect(() => {
     const eventEmitter = new NativeEventEmitter(YoutubeDlModule);
     const subscription = eventEmitter.addListener('DownloadProgress', (event) => {
-      setDlProgress(event);
+      setQueue(prev => prev.map(j => 
+        j.status === 'downloading' ? { ...j, progress: event.progress, eta: event.eta } : j
+      ));
     });
     return () => subscription.remove();
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const processNext = async () => {
+      if (activeJobId) return;
+      const next = queue.find(j => j.status === 'pending');
+      if (!next) return;
+
+      setActiveJobId(next.id);
+      setQueue(prev => prev.map(j => j.id === next.id ? { ...j, status: 'downloading' } : j));
+      setStatus(`> downloading: ${next.title}`);
+
+      try {
+        if (next.type === 'image') {
+          await YoutubeDlModule.downloadImages(next.url, next.options);
+        } else {
+          await YoutubeDlModule.download(next.url, next.options);
+        }
+        if (isMounted) {
+          setQueue(prev => prev.map(j => j.id === next.id ? { ...j, status: 'done', progress: 100 } : j));
+          setStatus(`> finished: ${next.title}`);
+        }
+      } catch (e) {
+        if (isMounted) {
+          setQueue(prev => prev.map(j => j.id === next.id ? { ...j, status: 'error', error: e.message } : j));
+          setStatus(`> error on ${next.title}: ${e.message}`);
+        }
+      } finally {
+        if (isMounted) {
+          setActiveJobId(null);
+        }
+      }
+    };
+    processNext();
+    return () => { isMounted = false; };
+  }, [queue, activeJobId]);
 
   useEffect(() => {
     async function setup() {
@@ -105,7 +145,6 @@ export default function App() {
     const headers = { 'Authorization': `Bearer ${token}` };
     const queries = [];
     
-    // Extracción de ID simple
     const getID = (url) => {
       const match = url.match(/(track|album|playlist)\/([a-zA-Z0-9]+)/);
       return match ? { type: match[1], id: match[2] } : null;
@@ -134,7 +173,7 @@ export default function App() {
             queries.push({ title: item.track.name, artist: item.track.artists[0].name });
           }
         });
-        nextUrl = playlist.next; // paginación
+        nextUrl = playlist.next; 
       }
     }
 
@@ -156,7 +195,6 @@ export default function App() {
 const analyzeUrl = async (targetUrl) => {
     Keyboard.dismiss();
     setIsLoading(true);
-    setDlProgress(null);
     setStatus('> analyzing link...');
     
     try {
@@ -199,7 +237,6 @@ const analyzeUrl = async (targetUrl) => {
       setStatus(`> error: ${e.message}`);
     } finally {
       setIsLoading(false);
-      setDlProgress(null);
     }
   };
 
@@ -207,7 +244,7 @@ const analyzeUrl = async (targetUrl) => {
     if (!isReady || !url.startsWith('http')) {
       if (url === '') {
         resetScan();
-        if (isReady) setStatus('> awaiting input.');
+        if (isReady && !activeJobId) setStatus('> awaiting input.');
       }
       return;
     }
@@ -223,51 +260,59 @@ const analyzeUrl = async (targetUrl) => {
 
   const chooseVariant = (index, variant) => setVariantOf(previous => ({ ...previous, [index]: variant }));
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!url || !mediaType || !scan) return;
     Keyboard.dismiss();
-    setIsLoading(true);
-    setDlProgress(null);
 
-    try {
-      if (picked.length === 0 && (isImage || scan.count > 1)) {
-        setStatus('> nothing selected.\n> enable at least one item.');
-        return;
-      }
-
-      if (isImage) {
-        const picks = picked.map(index => ({ entry: index, variant: variantOf[index] || 0 }));
-        setStatus(`> downloading ${picks.length} image(s)...\n> routing to /${folder}`);
-        const result = await YoutubeDlModule.downloadImages(url, { folder, picks });
-        const failed = result.failed ? `\n> \n> failed: ${result.failed}` : '';
-        setStatus(`> success. ${result.count} image(s) saved.\n> ${result.folder}\n${failed}`);
-      } else if (scan.isSpotify) {
-        setStatus(`> fetching ${format.toUpperCase()} at ${quality} quality...\n> routing to /${folder}`);
-        let successCount = 0;
-        for (const index of picked) {
-          const entry = scan.entries.find(e => e.index === index);
-          if (entry) {
-            setStatus(`> downloading [${index}/${picked.length}]: ${entry.title}...`);
-            await YoutubeDlModule.download(entry._query, { format, quality, folder });
-            successCount++;
-          }
-        }
-        setStatus(`> success. ${successCount} track(s) saved to /${folder}.`);
-      } else {
-
-        setStatus(`> fetching ${format.toUpperCase()} at ${quality} quality...\n> routing to /${folder}`);
-        const options = scan.count > 1 ? { format, quality, folder, items: picked } : { format, quality, folder };
-        const result = await YoutubeDlModule.download(url, options);
-        setStatus(`> success.\n> ${result}`);
-      }
-      // resetScan();
-      // setUrl(''); // Comentado para que el mensaje de éxito no desaparezca instantáneamente
-    } catch (e) {
-      setStatus(`> error: ${e.message}`);
-    } finally {
-      setIsLoading(false);
-      setDlProgress(null);
+    if (picked.length === 0 && (isImage || scan.count > 1)) {
+      setStatus('> nothing selected.\n> enable at least one item.');
+      return;
     }
+
+    if (isImage) {
+      const picks = picked.map(index => ({ entry: index, variant: variantOf[index] || 0 }));
+      const newJob = {
+        id: Date.now().toString(),
+        title: `${picks.length} Image(s)`,
+        type: 'image',
+        url,
+        options: { folder, picks },
+        status: 'pending',
+        progress: 0
+      };
+      setQueue(prev => [...prev, newJob]);
+      setStatus(`> queued ${picks.length} image(s).`);
+    } else if (scan.isSpotify) {
+      const newJobs = picked.map(index => {
+        const entry = scan.entries.find(e => e.index === index);
+        return {
+          id: Date.now().toString() + index,
+          title: entry.title,
+          type: 'spotify',
+          url: entry._query,
+          options: { format, quality, folder },
+          status: 'pending',
+          progress: 0
+        };
+      });
+      setQueue(prev => [...prev, ...newJobs]);
+      setStatus(`> queued ${newJobs.length} track(s).`);
+    } else {
+      const newJob = {
+        id: Date.now().toString(),
+        title: scan.count > 1 ? `${picked.length} Video(s) from Playlist` : (scan.entries[0]?.title || 'Video'),
+        type: 'video',
+        url,
+        options: scan.count > 1 ? { format, quality, folder, items: picked } : { format, quality, folder },
+        status: 'pending',
+        progress: 0
+      };
+      setQueue(prev => [...prev, newJob]);
+      setStatus(`> queued ${scan.count > 1 ? picked.length + ' item(s)' : 'video'}.`);
+    }
+    
+    resetScan();
+    setUrl('');
   };
 
   const SelectionRow = ({ title, options, selected, onSelect }) => (
@@ -300,7 +345,7 @@ const analyzeUrl = async (targetUrl) => {
           <Text style={styles.subtitle}>opencode // extractor</Text>
         </View>
 
-                <TextInput
+        <TextInput
           style={styles.input}
           placeholder="target url or search song..."
           placeholderTextColor="#555"
@@ -419,7 +464,7 @@ const analyzeUrl = async (targetUrl) => {
               <ActivityIndicator color="#000" size="large" />
             ) : (
               <Text style={styles.buttonText}>
-                {scan.count > 1 ? `YOINK (${picked.length})` : 'YOINK'}
+                {scan.count > 1 ? `ENQUEUE (${picked.length})` : 'ENQUEUE'}
               </Text>
             )}
           </TouchableOpacity>
@@ -427,15 +472,36 @@ const analyzeUrl = async (targetUrl) => {
 
         <View style={styles.consoleBox}>
           <Text style={styles.statusText}>{status}</Text>
-          {dlProgress && (
-            <Text style={styles.statusText}>
-              {`[${'#'.repeat(Math.floor(Math.max(0, Math.min(100, dlProgress.progress)) / 5))}${(
-                '.'.repeat(20 - Math.floor(Math.max(0, Math.min(100, dlProgress.progress)) / 5))
-              )}] ${Math.max(0, Math.min(100, dlProgress.progress)).toFixed(1)}%`}
-              {dlProgress.eta > 0 ? ` ETA: ${dlProgress.eta}s` : ''}
-            </Text>
-          )}
         </View>
+
+        {queue.length > 0 && (
+          <View style={styles.queueBox}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={styles.queueHeader}>QUEUE ({queue.filter(j => j.status === 'pending').length} PENDING)</Text>
+              <TouchableOpacity onPress={() => setQueue(q => q.filter(j => j.status !== 'done' && j.status !== 'error'))}>
+                <Text style={styles.clearText}>[CLEAR]</Text>
+              </TouchableOpacity>
+            </View>
+            {queue.map(job => (
+              <View key={job.id} style={styles.jobRow}>
+                <Text style={styles.jobStatus}>
+                  {job.status === 'pending' ? '[WAIT]' : job.status === 'downloading' ? '[DOWN]' : job.status === 'done' ? '[DONE]' : '[FAIL]'}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.jobTitle} numberOfLines={1}>{job.title}</Text>
+                  {job.status === 'downloading' && (
+                    <Text style={styles.jobProgress}>
+                      {job.progress.toFixed(1)}% {job.eta > 0 ? `(ETA: ${job.eta}s)` : ''}
+                    </Text>
+                  )}
+                  {job.status === 'error' && (
+                    <Text style={styles.jobError} numberOfLines={1}>{job.error}</Text>
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={styles.disclaimerBox}>
           <Text style={styles.disclaimerText}>
@@ -482,6 +548,14 @@ const styles = StyleSheet.create({
   buttonText: { color: '#000F0F', fontSize: 16, fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: 2 },
   consoleBox: { marginTop: 30, backgroundColor: '#000F0F', padding: 16, borderWidth: 1, borderColor: '#1A3333' },
   statusText: { color: '#CCCCCC', fontFamily: 'monospace', fontSize: 13, lineHeight: 20 },
+  queueBox: { marginTop: 20, borderWidth: 1, borderColor: '#1A3333', padding: 12, backgroundColor: '#051111' },
+  queueHeader: { color: '#68C7EC', fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold', letterSpacing: 1 },
+  clearText: { color: '#555555', fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' },
+  jobRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  jobStatus: { color: '#777777', fontFamily: 'monospace', fontSize: 12, marginRight: 8, width: 50 },
+  jobTitle: { color: '#CCCCCC', fontFamily: 'monospace', fontSize: 12 },
+  jobProgress: { color: '#68C7EC', fontFamily: 'monospace', fontSize: 10, marginTop: 2 },
+  jobError: { color: '#FF5555', fontFamily: 'monospace', fontSize: 10, marginTop: 2 },
   disclaimerBox: { marginTop: 40, borderTopWidth: 1, borderTopColor: '#222222', paddingTop: 20 },
   disclaimerText: { color: '#444444', fontFamily: 'monospace', fontSize: 10, lineHeight: 14, textAlign: 'justify' }
 });
