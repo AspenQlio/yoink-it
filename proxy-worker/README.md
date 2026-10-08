@@ -1,39 +1,44 @@
-# YoinkIt: Twitter/X Proxy Worker 🛡️
+# YOINK-IT // Serverless X Proxy
 
-Dado que X (Twitter) bloquea las peticiones de extracción (como las de `yt-dlp`) para contenido restringido (+18 o cuentas limitadas) si no se provee una cookie de inicio de sesión, la mejor forma de evadir esto **sin comprometer tu cuenta real** es usar un intermediario.
+> A secure, self-hosted Cloudflare Worker proxy to bypass authentication walls on restricted X (Twitter) media without exposing the client IP address.
 
-Para proteger tu dirección IP y evitar incrustar el intermediario directamente en el código de YoinkIt (lo que agotaría cuotas gratuitas si se hace público), puedes desplegar tu propio escudo 100% gratuito usando **Cloudflare Workers**.
+This proxy intercepts URLs sent from YoinkIt and securely delegates the extraction process to public APIs. This circumvents the `yt-dlp` tombstone errors on age-restricted or private media without requiring local cookie injection or user authentication.
 
-## Guía de Instalación (5 minutos)
+## Architecture
 
-### 1. Crear el Worker en Cloudflare
-1. Entra a [dash.cloudflare.com](https://dash.cloudflare.com) y crea una cuenta gratuita.
-2. En el menú lateral izquierdo, ve a **Workers & Pages**.
-3. Haz clic en **Create Application** y luego en **Create Worker**.
-4. Ponle un nombre (por ejemplo: `yoink-x-proxy`) y dale a **Deploy**.
+- **Platform:** Cloudflare Workers (Serverless)
+- **Security:** Header-based authorization (`x-api-key`)
+- **Integration:** React Native `.env` configuration
 
-### 2. Subir el Código
-1. Haz clic en el botón **Edit code** del Worker recién creado.
-2. Borra todo el código que aparece ahí y pega el contenido completo del archivo `worker.js` que está en esta carpeta.
-3. Haz clic arriba a la derecha en **Deploy** (Guardar y desplegar).
+## Deployment Guide
 
-### 3. Configurar tu API Key Secreta (Seguridad)
-Para evitar que cualquiera use tu proxy, le hemos puesto un cerrojo.
-1. Sal del editor de código y vuelve a la página de detalles de tu Worker.
-2. Ve a la pestaña **Settings** -> **Variables and Secrets**.
-3. Añade una nueva variable:
+### 1. Cloudflare Initialization
+1. Navigate to [dash.cloudflare.com](https://dash.cloudflare.com).
+2. Access **Workers & Pages** -> **Create Application** -> **Create Worker**.
+3. Name the worker (e.g., `yoink-x-proxy`) and deploy.
+
+### 2. Script Injection
+1. Click **Edit code** on the deployed worker.
+2. Replace the boilerplate with the contents of `worker.js` provided in this directory.
+3. Click **Deploy**.
+
+### 3. Security Configuration
+1. Return to the Worker details page and select **Settings** -> **Variables and Secrets**.
+2. Add a new secret variable:
    * **Name:** `EXPECTED_API_KEY`
-   * **Value:** *(Inventa una contraseña secreta, ej: `YoinkItSuperSecret2026!+`)*
-   * Dale a **Encrypt** para que quede como secreto, y guárdalo.
+   * **Value:** *(Define a secure passphrase)*
+3. Save and encrypt the variable.
 
-### 4. Conectar YoinkIt a tu Escudo
-1. Copia la URL pública de tu Worker (Suele ser algo como `https://yoink-x-proxy.tu-usuario.workers.dev`).
-2. En la carpeta raíz del proyecto React Native (`yoink-it/`), abre (o crea) tu archivo `.env`.
-3. Añade estas dos líneas usando tu URL y tu clave inventada:
+## Application Integration
+
+To connect the Android application to your new proxy instance, configure the local environment variables.
+
+1. Retrieve the public URL of your Cloudflare Worker (e.g., `https://yoink-x-proxy.username.workers.dev`).
+2. Add the following keys to your `.env` file in the project root:
 
 ```env
-EXPO_PUBLIC_X_PROXY_URL=https://yoink-x-proxy.tu-usuario.workers.dev
-EXPO_PUBLIC_X_PROXY_KEY=YoinkItSuperSecret2026!+
+EXPO_PUBLIC_X_PROXY_URL=https://your-worker-url.workers.dev
+EXPO_PUBLIC_X_PROXY_KEY=your_secure_passphrase
 ```
 
-¡Listo! A partir de ahora, cuando pegues un link de X en YoinkIt, la app detectará automáticamente tus credenciales en el `.env`, interceptará la descarga, y le pedirá a tu servidor de Cloudflare que consiga el archivo MP4 crudo. Si tus variables `.env` están vacías, YoinkIt usará `yt-dlp` como siempre de forma nativa (con las limitaciones que conlleva).
+Once configured, YoinkIt will automatically detect the presence of the proxy keys and route all X/Twitter extractions through the serverless endpoint. If the keys are omitted, the application will perform a safe fallback to the native `yt-dlp` engine.
