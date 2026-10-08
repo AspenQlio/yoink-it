@@ -49,39 +49,37 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
     const processNext = async () => {
       if (activeJobId) return;
-      const next = queue.find(j => j.status === 'pending');
-      if (!next) return;
+      
+      let nextJob = null;
+      setQueue(prev => {
+        nextJob = prev.find(j => j.status === 'pending');
+        return prev;
+      });
 
-      setActiveJobId(next.id);
-      setQueue(prev => prev.map(j => j.id === next.id ? { ...j, status: 'downloading' } : j));
-      setStatus(`> downloading: ${next.title}`);
+      if (!nextJob) return;
+
+      setActiveJobId(nextJob.id);
+      setQueue(prev => prev.map(j => j.id === nextJob.id ? { ...j, status: 'downloading' } : j));
+      setStatus(`> downloading: ${nextJob.title}`);
 
       try {
-        if (next.type === 'image') {
-          await YoutubeDlModule.downloadImages(next.url, next.options);
+        if (nextJob.type === 'image') {
+          await YoutubeDlModule.downloadImages(nextJob.url, nextJob.options);
         } else {
-          await YoutubeDlModule.download(next.url, next.options);
+          await YoutubeDlModule.download(nextJob.url, nextJob.options);
         }
-        if (isMounted) {
-          setQueue(prev => prev.map(j => j.id === next.id ? { ...j, status: 'done', progress: 100 } : j));
-          setStatus(`> finished: ${next.title}`);
-        }
+        setQueue(prev => prev.map(j => j.id === nextJob.id ? { ...j, status: 'done', progress: 100 } : j));
+        setStatus(`> finished: ${nextJob.title}`);
       } catch (e) {
-        if (isMounted) {
-          setQueue(prev => prev.map(j => j.id === next.id ? { ...j, status: 'error', error: e.message } : j));
-          setStatus(`> error on ${next.title}: ${e.message}`);
-        }
+        setQueue(prev => prev.map(j => j.id === nextJob.id ? { ...j, status: 'error', error: e.message } : j));
+        setStatus(`> error on ${nextJob.title}: ${e.message}`);
       } finally {
-        if (isMounted) {
-          setActiveJobId(null);
-        }
+        setActiveJobId(null);
       }
     };
     processNext();
-    return () => { isMounted = false; };
   }, [queue, activeJobId]);
 
   useEffect(() => {

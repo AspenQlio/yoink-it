@@ -314,6 +314,13 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         }
     }
 
+    private fun scanMediaFiles(dir: File) {
+        val files = dir.listFiles()?.filter { it.isFile }?.map { it.absolutePath }?.toTypedArray()
+        if (!files.isNullOrEmpty()) {
+            android.media.MediaScannerConnection.scanFile(reactApplicationContext, files, null, null)
+        }
+    }
+
     @ReactMethod
     fun addListener(eventName: String) {}
 
