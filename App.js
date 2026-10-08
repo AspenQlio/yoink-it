@@ -13,6 +13,14 @@ export default function App() {
   const [format, setFormat] = useState('mp4');
   const [quality, setQuality] = useState('high');
   const [folder, setFolder] = useState('Downloads');
+  const [scan, setScan] = useState(null);
+
+  const isImage = format === 'image';
+
+  const selectFormat = value => {
+    setFormat(value);
+    setScan(null);
+  };
 
   useEffect(() => {
     async function setup() {
@@ -34,8 +42,34 @@ export default function App() {
     if (!url) return;
     Keyboard.dismiss();
     setIsLoading(true);
-    setStatus(`> fetching ${format.toUpperCase()} at ${quality} quality...\n> routing to /${folder}`);
+
     try {
+      if (isImage) {
+        if (!scan) {
+          setStatus(`> scanning images...\n> resolving highest resolution...`);
+          const result = await YoutubeDlModule.scanImages(url);
+          setScan(result);
+          if (result.count === 0) {
+            setStatus(`> no images found.\n> this link looks video or audio only.`);
+            return;
+          }
+          const lines = result.images
+            .map(img => `  [${img.index}] ${img.width || '?'}x${img.height || '?'} ${String(img.ext).toUpperCase()}`)
+            .join('\n');
+          setStatus(`> scan complete. ${result.count} image(s) found.\n${lines}\n> press SAVE ALL to download.`);
+          return;
+        }
+
+        setStatus(`> downloading ${scan.count} image(s) at max resolution...\n> routing to /${folder}`);
+        const result = await YoutubeDlModule.downloadImages(url, { folder });
+        const failed = result.failed ? `\n> failed: ${result.failed}` : '';
+        setStatus(`> success. ${result.count} image(s) saved.\n> ${result.folder}\n${failed}`);
+        setScan(null);
+        setUrl('');
+        return;
+      }
+
+      setStatus(`> fetching ${format.toUpperCase()} at ${quality} quality...\n> routing to /${folder}`);
       const options = { format, quality, folder };
       const result = await YoutubeDlModule.download(url, options);
       setStatus(`> success.\n> ${result}`);
@@ -71,7 +105,7 @@ export default function App() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
-        
+
         <View style={styles.header}>
           <Text style={styles.title}>YOINK</Text>
           <Text style={styles.subtitle}>opencode // extractor</Text>
@@ -82,40 +116,51 @@ export default function App() {
           placeholder="target url..."
           placeholderTextColor="#555"
           value={url}
-          onChangeText={setUrl}
+          onChangeText={text => { setUrl(text); setScan(null); }}
           editable={!isLoading && isReady}
           autoCapitalize="none"
           autoCorrect={false}
           selectionColor="#FFF"
         />
 
-        <SelectionRow 
-          title="FORMAT" 
-          selected={format} 
-          onSelect={setFormat}
-          options={[{label: 'MP4', value: 'mp4'}, {label: 'MP3', value: 'mp3'}]} 
-        />
-        
-        <SelectionRow 
-          title="QUALITY" 
-          selected={quality} 
-          onSelect={setQuality}
+        <SelectionRow
+          title="FORMAT"
+          selected={format}
+          onSelect={selectFormat}
           options={[
-            {label: 'MAX', value: 'high'}, 
-            {label: 'MID', value: 'medium'}, 
-            {label: 'LOW', value: 'low'}
-          ]} 
+            {label: 'MP4', value: 'mp4'},
+            {label: 'MP3', value: 'mp3'},
+            {label: 'IMG', value: 'image'}
+          ]}
         />
 
-        <SelectionRow 
-          title="OUTPUT" 
-          selected={folder} 
+        {isImage ? (
+          <View style={styles.rowContainer}>
+            <Text style={styles.rowLabel}>RESOLUTION</Text>
+            <Text style={styles.autoNote}>{scan ? `> ${scan.count} image(s) ready` : '> AUTO // HIGHEST AVAILABLE'}</Text>
+          </View>
+        ) : (
+          <SelectionRow
+            title="QUALITY"
+            selected={quality}
+            onSelect={setQuality}
+            options={[
+              {label: 'MAX', value: 'high'},
+              {label: 'MID', value: 'medium'},
+              {label: 'LOW', value: 'low'}
+            ]}
+          />
+        )}
+
+        <SelectionRow
+          title="OUTPUT"
+          selected={folder}
           onSelect={setFolder}
           options={[
-            {label: 'DL', value: 'Downloads'}, 
-            {label: 'MSC', value: 'Music'}, 
+            {label: 'DL', value: 'Downloads'},
+            {label: 'MSC', value: 'Music'},
             {label: 'VID', value: 'Movies'}
-          ]} 
+          ]}
         />
 
         <TouchableOpacity
@@ -126,7 +171,9 @@ export default function App() {
           {isLoading ? (
             <ActivityIndicator color="#000" size="large" />
           ) : (
-            <Text style={styles.buttonText}>EXECUTE</Text>
+            <Text style={styles.buttonText}>
+              {isImage ? (scan ? 'SAVE ALL' : 'SCAN') : 'EXECUTE'}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -136,7 +183,7 @@ export default function App() {
 
         <View style={styles.disclaimerBox}>
           <Text style={styles.disclaimerText}>
-            // DISCLAIMER: This application is heavily inspired by, based on, and acts as a mobile plagiarism of the 'yoinks' CLI from GitHub (github.com/pablostanley/yoinks). 
+            // DISCLAIMER: This application is heavily inspired by, based on, and acts as a mobile plagiarism of the 'yoinks' CLI from GitHub (github.com/pablostanley/yoinks).
             All credit for the original concept goes to its creator.
           </Text>
         </View>
@@ -155,6 +202,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#0A0A0A', color: '#FFFFFF', fontFamily: 'monospace', fontSize: 16, padding: 16, borderRadius: 0, borderWidth: 1, borderColor: '#333333', marginBottom: 24 },
   rowContainer: { marginBottom: 16 },
   rowLabel: { color: '#777777', fontSize: 12, marginBottom: 8, fontFamily: 'monospace', letterSpacing: 1 },
+  autoNote: { color: '#555555', fontSize: 12, fontFamily: 'monospace', letterSpacing: 1 },
   buttonGroup: { flexDirection: 'row', gap: 8 },
   optButton: { flex: 1, paddingVertical: 12, backgroundColor: '#050505', borderRadius: 0, alignItems: 'center', borderWidth: 1, borderColor: '#333333' },
   optButtonSelected: { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },

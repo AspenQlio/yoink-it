@@ -130,6 +130,9 @@ android {
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
 }
 
 // Apply static values from `gradle.properties` to the `android.packagingOptions`
@@ -182,4 +185,8 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    testImplementation 'junit:junit:4.13.2'
+    // android.jar only ships stubbed org.json, so unit tests need a real implementation.
+    testImplementation 'org.json:json:20240303'
 }
