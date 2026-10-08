@@ -25,7 +25,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     private data class ImageScan(
         val url: String,
         val title: String,
-        val images: List<ImageCandidate>
+        val entries: List<EntryImages>
     )
 
     override fun getName(): String {
@@ -96,6 +96,9 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
      *
      * yt-dlp is asked to write one info json per media entry, which is the only
      * way to see carousel items: the typed VideoInfo model has no entries list.
+     *
+     * Signed CDN urls stay on this side of the bridge. The UI can only name an
+     * entry and a variant, so a pick is validated here against the cached scan.
      */
     @ReactMethod
     fun scanImages(url: String, promise: Promise) {
@@ -104,20 +107,26 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 val scan = runScan(url)
                 lastScan = scan
 
-                val images = Arguments.createArray()
-                scan.images.forEachIndexed { position, candidate ->
-                    val entry = Arguments.createMap()
-                    entry.putInt("index", position + 1)
-                    entry.putInt("width", candidate.width)
-                    entry.putInt("height", candidate.height)
-                    entry.putString("ext", candidate.ext)
-                    images.pushMap(entry)
+                val entries = Arguments.createArray()
+                scan.entries.forEach { entry ->
+                    val variants = Arguments.createArray()
+                    entry.variants.forEach { candidate ->
+                        val descriptor = Arguments.createMap()
+                        descriptor.putInt("width", candidate.width)
+                        descriptor.putInt("height", candidate.height)
+                        descriptor.putString("ext", candidate.ext)
+                        variants.pushMap(descriptor)
+                    }
+                    val payload = Arguments.createMap()
+                    payload.putInt("index", entry.index)
+                    payload.putArray("variants", variants)
+                    entries.pushMap(payload)
                 }
 
                 val result = Arguments.createMap()
                 result.putString("title", scan.title)
-                result.putInt("count", scan.images.size)
-                result.putArray("images", images)
+                result.putInt("count", scan.entries.size)
+                result.putArray("entries", entries)
                 promise.resolve(result)
             } catch (e: Exception) {
                 promise.reject("SCAN_ERROR", e.message ?: "Scan failed", e)
@@ -125,7 +134,10 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         }
     }
 
-    /** Saves every image found by the scan, each at its highest available resolution. */
+    /**
+     * Saves the picked images. Without picks every entry is saved at its best
+     * resolution, which keeps the plain save-everything path working.
+     */
     @ReactMethod
     fun downloadImages(url: String, options: ReadableMap, promise: Promise) {
         moduleScope.launch {
@@ -133,22 +145,29 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 val folder = if (options.hasKey("folder")) options.getString("folder") else "Downloads"
                 val scan = lastScan?.takeIf { it.url == url } ?: runScan(url).also { lastScan = it }
 
-                if (scan.images.isEmpty()) {
+                if (scan.entries.isEmpty()) {
                     promise.reject("NO_IMAGES", "This link exposes no image, only video or audio")
                     return@launch
                 }
 
+                val picks = if (options.hasKey("picks")) options.getArray("picks") else null
+                val targets = resolveTargets(scan, picks)
+                if (targets.isEmpty()) {
+                    promise.reject("NO_SELECTION", "No image selected")
+                    return@launch
+                }
+
                 val appDir = resolveOutputDir(folder)
-                val saved = ArrayList<String>(scan.images.size)
+                val saved = ArrayList<String>(targets.size)
                 val failures = ArrayList<String>()
 
-                scan.images.forEachIndexed { position, candidate ->
-                    val target = File(appDir, FileNames.build(scan.title, position + 1, candidate.ext))
+                targets.forEach { (entry, candidate) ->
+                    val target = File(appDir, FileNames.build(scan.title, entry.index, candidate.ext))
                     try {
                         downloadImage(candidate.url, target)
                         saved.add(target.name)
                     } catch (e: Exception) {
-                        failures.add("${position + 1}: ${e.message}")
+                        failures.add("${entry.index}: ${e.message}")
                     }
                 }
 
@@ -167,6 +186,20 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 promise.reject("IMAGE_DOWNLOAD_ERROR", e.message ?: "Download failed", e)
             }
         }
+    }
+
+    private fun resolveTargets(scan: ImageScan, picks: ReadableArray?): List<Pair<EntryImages, ImageCandidate>> {
+        if (picks == null || picks.size() == 0) return scan.entries.map { it to it.best }
+
+        val byIndex = scan.entries.associateBy { it.index }
+        val chosen = ArrayList<Pair<EntryImages, ImageCandidate>>()
+        for (i in 0 until picks.size()) {
+            val pick = picks.getMap(i) ?: continue
+            val entry = byIndex[pick.getInt("entry")] ?: continue
+            val variant = if (pick.hasKey("variant")) pick.getInt("variant") else 0
+            chosen.add(entry to (entry.variants.getOrNull(variant) ?: entry.best))
+        }
+        return chosen
     }
 
     private fun runScan(url: String): ImageScan {
@@ -188,20 +221,19 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
 
             val response = YoutubeDL.getInstance().execute(request)
 
-            val entries = workDir.listFiles { file -> file.name.endsWith(".info.json") }
+            val infoJsons = workDir.listFiles { file -> file.name.endsWith(".info.json") }
                 ?.sortedBy { it.name }
                 ?.mapNotNull { file -> runCatching { JSONObject(file.readText()) }.getOrNull() }
                 .orEmpty()
 
-            val images = ImageCandidateSelector.selectAll(entries)
-            val title = entries.firstOrNull()?.optString("title").orEmpty()
-                .ifBlank { "yoink" }
+            val entries = ImageCandidateSelector.entryImages(infoJsons)
+            val title = infoJsons.firstOrNull()?.optString("title").orEmpty().ifBlank { "yoink" }
 
-            if (images.isEmpty() && response.exitCode != 0) {
+            if (entries.isEmpty() && response.exitCode != 0) {
                 throw IOException("yt-dlp exited with code ${response.exitCode}: ${response.err.take(300)}")
             }
 
-            return ImageScan(url, title, images)
+            return ImageScan(url, title, entries)
         } finally {
             workDir.deleteRecursively()
         }

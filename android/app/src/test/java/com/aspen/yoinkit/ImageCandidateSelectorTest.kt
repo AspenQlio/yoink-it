@@ -125,4 +125,81 @@ class ImageCandidateSelectorTest {
         assertEquals("jpg", ImageCandidateSelector.extFromUrl("https://cdn/photo"))
         assertEquals("jpg", ImageCandidateSelector.extFromUrl("https://cdn/noext"))
     }
+
+    @Test
+    fun `variants are ordered best first`() {
+        val entry = JSONObject().put(
+            "formats",
+            JSONArray()
+                .put(format("https://cdn/small.jpg", "jpg", 320, 320))
+                .put(format("https://cdn/big.jpg", "jpg", 1440, 1440))
+                .put(format("https://cdn/medium.jpg", "jpg", 640, 640))
+        )
+
+        val variants = ImageCandidateSelector.variantsFrom(entry)
+
+        assertEquals(
+            listOf("https://cdn/big.jpg", "https://cdn/medium.jpg", "https://cdn/small.jpg"),
+            variants.map { it.url }
+        )
+    }
+
+    @Test
+    fun `media format is listed before a larger thumbnail so the original stays first`() {
+        val entry = JSONObject()
+            .put("formats", JSONArray().put(format("https://cdn/original.png", "png", 1080, 1080)))
+            .put(
+                "thumbnails",
+                JSONArray()
+                    .put(thumbnail("https://cdn/thumb-small.jpg", 320, 320))
+                    .put(thumbnail("https://cdn/thumb-big.jpg", 4000, 4000))
+            )
+
+        val variants = ImageCandidateSelector.variantsFrom(entry)
+
+        assertEquals("https://cdn/original.png", variants.first().url)
+        assertEquals(
+            listOf("https://cdn/thumb-big.jpg", "https://cdn/thumb-small.jpg"),
+            variants.drop(1).map { it.url }
+        )
+    }
+
+    @Test
+    fun `repeated url across formats and thumbnails is offered once`() {
+        val entry = JSONObject()
+            .put("formats", JSONArray().put(format("https://cdn/same.jpg", "jpg", 1080, 1080)))
+            .put("thumbnails", JSONArray().put(thumbnail("https://cdn/same.jpg", 1080, 1080)))
+
+        val variants = ImageCandidateSelector.variantsFrom(entry)
+
+        assertEquals(1, variants.size)
+        assertEquals("https://cdn/same.jpg", variants.first().url)
+    }
+
+    @Test
+    fun `entries without images are skipped and indexes keep their original position`() {
+        val entries = listOf(
+            JSONObject().put("formats", JSONArray().put(format("https://cdn/first.jpg", "jpg", 1080, 1080))),
+            JSONObject().put("formats", JSONArray().put(format("https://cdn/clip.mp4", "mp4", 1920, 1080))),
+            JSONObject().put("formats", JSONArray().put(format("https://cdn/third.jpg", "jpg", 1080, 1350)))
+        )
+
+        val grouped = ImageCandidateSelector.entryImages(entries)
+
+        assertEquals(listOf(1, 3), grouped.map { it.index })
+        assertEquals("https://cdn/first.jpg", grouped.first().best.url)
+        assertEquals(1, grouped.first().variants.size)
+    }
+
+    @Test
+    fun `selectFrom stays the best variant so existing callers are unaffected`() {
+        val entry = JSONObject()
+            .put("formats", JSONArray().put(format("https://cdn/big.jpg", "jpg", 1440, 1440)))
+            .put("thumbnails", JSONArray().put(thumbnail("https://cdn/thumb.jpg", 320, 320)))
+
+        assertEquals(
+            ImageCandidateSelector.variantsFrom(entry).first().url,
+            ImageCandidateSelector.selectFrom(entry)?.url
+        )
+    }
 }
