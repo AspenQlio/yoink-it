@@ -36,9 +36,19 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     fun initialize(promise: Promise) {
         moduleScope.launch {
             try {
-                YoutubeDL.getInstance().init(reactApplicationContext)
+                val youtubeDl = YoutubeDL.getInstance()
+                youtubeDl.init(reactApplicationContext)
+                val updateWarning = try {
+                    youtubeDl.updateYoutubeDL(reactApplicationContext, YoutubeDL.UpdateChannel._STABLE)
+                    null
+                } catch (e: YoutubeDLException) {
+                    e.message ?: "yt-dlp update failed"
+                }
                 FFmpeg.getInstance().init(reactApplicationContext)
-                promise.resolve("Engine Initialized")
+                val result = Arguments.createMap()
+                result.putString("version", youtubeDl.versionName(reactApplicationContext))
+                if (updateWarning != null) result.putString("updateWarning", updateWarning)
+                promise.resolve(result)
             } catch (e: Exception) {
                 promise.reject("INIT_ERROR", "Error initializing YoutubeDL", e)
             }
@@ -63,8 +73,18 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
 
                 val request = YoutubeDLRequest(url)
                 val appDir = resolveOutputDir(folder)
+                val selectedItems = if (options.hasKey("items")) options.getArray("items") else null
+                val itemIndices = if (selectedItems == null) emptyList() else {
+                    (0 until selectedItems.size()).map { selectedItems.getInt(it) }
+                }
+                val playlistItems = VideoPlaylistSelector.playlistItems(itemIndices)
 
-                request.addOption("-o", appDir.absolutePath + "/%(title)s.%(ext)s")
+                if (playlistItems.isNotEmpty()) {
+                    request.addOption("--playlist-items", playlistItems)
+                    request.addOption("-o", VideoPlaylistSelector.outputTemplate(appDir))
+                } else {
+                    request.addOption("-o", appDir.absolutePath + "/%(title)s.%(ext)s")
+                }
 
                 if (format == "mp3") {
                     request.addOption("-x")
@@ -86,50 +106,96 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
 
                 promise.resolve("Saved successfully to $folder/YoinkIt!")
             } catch (e: Exception) {
-                promise.reject("DOWNLOAD_ERROR", e.message, e)
+                promise.reject("DOWNLOAD_ERROR", YtDlpErrors.userMessage(e.message), e)
             }
         }
     }
 
-    /**
-     * Inspects a link and reports every image yt-dlp can see, without downloading.
-     *
-     * yt-dlp is asked to write one info json per media entry, which is the only
-     * way to see carousel items: the typed VideoInfo model has no entries list.
-     *
-     * Signed CDN urls stay on this side of the bridge. The UI can only name an
-     * entry and a variant, so a pick is validated here against the cached scan.
-     */
     @ReactMethod
-    fun scanImages(url: String, promise: Promise) {
+    fun analyzeLink(url: String, promise: Promise) {
         moduleScope.launch {
             try {
-                val scan = runScan(url)
-                lastScan = scan
+                val request = YoutubeDLRequest(url)
+                request.addOption("--dump-json")
+                request.addOption("--flat-playlist")
+                request.addOption("--skip-download")
+                request.addOption("--ignore-errors")
+                request.addOption("--ignore-no-formats-error")
+                request.addOption("--no-warnings")
 
-                val entries = Arguments.createArray()
-                scan.entries.forEach { entry ->
-                    val variants = Arguments.createArray()
-                    entry.variants.forEach { candidate ->
-                        val descriptor = Arguments.createMap()
-                        descriptor.putInt("width", candidate.width)
-                        descriptor.putInt("height", candidate.height)
-                        descriptor.putString("ext", candidate.ext)
-                        variants.pushMap(descriptor)
-                    }
-                    val payload = Arguments.createMap()
-                    payload.putInt("index", entry.index)
-                    payload.putArray("variants", variants)
-                    entries.pushMap(payload)
+                var exitCode = 0
+                var errMessage = ""
+                var output = ""
+                try {
+                    val response = YoutubeDL.getInstance().execute(request)
+                    exitCode = response.exitCode
+                    errMessage = response.err
+                    output = response.out
+                } catch (e: YoutubeDLException) {
+                    exitCode = 1
+                    errMessage = e.message ?: "yt-dlp failed"
                 }
 
+                val lines = output.lines().filter { it.isNotBlank() }
+                val jsons = lines.mapNotNull { runCatching { JSONObject(it) }.getOrNull() }
+
+                if (jsons.isEmpty()) {
+                    throw IOException(if (errMessage.isNotBlank()) errMessage else "No media found at this URL")
+                }
+
+                var isImage = true
+                for (json in jsons) {
+                    val type = json.optString("_type")
+                    val formats = json.optJSONArray("formats")
+                    if (type == "url" || (formats != null && formats.length() > 0)) {
+                        isImage = false
+                        break
+                    }
+                }
+
+                val title = jsons.firstOrNull()?.optString("title").orEmpty().ifBlank { "yoink" }
                 val result = Arguments.createMap()
-                result.putString("title", scan.title)
-                result.putInt("count", scan.entries.size)
-                result.putArray("entries", entries)
+                result.putString("title", title)
+                result.putInt("count", jsons.size)
+
+                if (isImage) {
+                    result.putString("type", "image")
+                    val entries = Arguments.createArray()
+                    val parsed = ImageCandidateSelector.entryImages(jsons)
+                    parsed.forEach { entry ->
+                        val variants = Arguments.createArray()
+                        entry.variants.forEach { candidate ->
+                            val descriptor = Arguments.createMap()
+                            descriptor.putInt("width", candidate.width)
+                            descriptor.putInt("height", candidate.height)
+                            descriptor.putString("ext", candidate.ext)
+                            variants.pushMap(descriptor)
+                        }
+                        val payload = Arguments.createMap()
+                        payload.putInt("index", entry.index)
+                        payload.putArray("variants", variants)
+                        entries.pushMap(payload)
+                    }
+                    result.putArray("entries", entries)
+                    lastScan = ImageScan(url, title, parsed)
+                } else {
+                    result.putString("type", "video")
+                    val entries = Arguments.createArray()
+                    jsons.forEachIndexed { idx, json ->
+                        val index = json.optInt("playlist_index").takeIf { it > 0 } ?: (idx + 1)
+                        val slideTitle = json.optString("title").ifBlank { "Slide $index" }
+                        val payload = Arguments.createMap()
+                        payload.putInt("index", index)
+                        payload.putString("title", slideTitle)
+                        payload.putInt("duration", json.optInt("duration", 0))
+                        entries.pushMap(payload)
+                    }
+                    result.putArray("entries", entries)
+                }
+
                 promise.resolve(result)
             } catch (e: Exception) {
-                promise.reject("SCAN_ERROR", e.message ?: "Scan failed", e)
+                promise.reject("ANALYZE_ERROR", YtDlpErrors.userMessage(e.message), e)
             }
         }
     }
@@ -143,7 +209,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         moduleScope.launch {
             try {
                 val folder = if (options.hasKey("folder")) options.getString("folder") else "Downloads"
-                val scan = lastScan?.takeIf { it.url == url } ?: runScan(url).also { lastScan = it }
+                val scan = lastScan?.takeIf { it.url == url } ?: throw IOException("Images not scanned yet")
 
                 if (scan.entries.isEmpty()) {
                     promise.reject("NO_IMAGES", "This link exposes no image, only video or audio")
@@ -183,7 +249,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 if (failures.isNotEmpty()) result.putString("failed", failures.joinToString("; "))
                 promise.resolve(result)
             } catch (e: Exception) {
-                promise.reject("IMAGE_DOWNLOAD_ERROR", e.message ?: "Download failed", e)
+                promise.reject("IMAGE_DOWNLOAD_ERROR", YtDlpErrors.userMessage(e.message), e)
             }
         }
     }
@@ -200,43 +266,6 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
             chosen.add(entry to (entry.variants.getOrNull(variant) ?: entry.best))
         }
         return chosen
-    }
-
-    private fun runScan(url: String): ImageScan {
-        val workDir = File(reactApplicationContext.cacheDir, "yoink_scan").apply {
-            deleteRecursively()
-            mkdirs()
-        }
-
-        try {
-            val request = YoutubeDLRequest(url)
-            // autonumber keeps carousel entries in separate files even when they share an id.
-            request.addOption("-o", File(workDir, "%(autonumber)0>2d.%(ext)s").absolutePath)
-            request.addOption("--skip-download")
-            request.addOption("--write-info-json")
-            request.addOption("--no-clean-info-json")
-            request.addOption("--no-warnings")
-            // Carousels are a playlist, so entries must not be flattened away.
-            request.addOption("--ignore-errors")
-
-            val response = YoutubeDL.getInstance().execute(request)
-
-            val infoJsons = workDir.listFiles { file -> file.name.endsWith(".info.json") }
-                ?.sortedBy { it.name }
-                ?.mapNotNull { file -> runCatching { JSONObject(file.readText()) }.getOrNull() }
-                .orEmpty()
-
-            val entries = ImageCandidateSelector.entryImages(infoJsons)
-            val title = infoJsons.firstOrNull()?.optString("title").orEmpty().ifBlank { "yoink" }
-
-            if (entries.isEmpty() && response.exitCode != 0) {
-                throw IOException("yt-dlp exited with code ${response.exitCode}: ${response.err.take(300)}")
-            }
-
-            return ImageScan(url, title, entries)
-        } finally {
-            workDir.deleteRecursively()
-        }
     }
 
     private fun downloadImage(url: String, target: File) {

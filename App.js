@@ -4,7 +4,7 @@ import { NativeModules } from 'react-native';
 
 const { YoutubeDlModule } = NativeModules;
 
-const dims = variant => `${variant.width || '?'}x${variant.height || '?'}`;
+const dims = variant => (variant.width && variant.height) ? `${variant.width}x${variant.height}` : 'MAX';
 
 export default function App() {
   const [url, setUrl] = useState('');
@@ -12,31 +12,27 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  const [format, setFormat] = useState('mp4');
+  // User selections
+  const [format, setFormat] = useState('mp4'); // mp4 or mp3 (for video media types)
   const [quality, setQuality] = useState('high');
   const [folder, setFolder] = useState('Downloads');
+
+  // Media state
+  const [mediaType, setMediaType] = useState(null); // 'image', 'video', or null
   const [scan, setScan] = useState(null);
   const [picked, setPicked] = useState([]);
   const [variantOf, setVariantOf] = useState({});
 
-  const isImage = format === 'image';
+  const isImage = mediaType === 'image';
+  const isVideo = mediaType === 'video';
 
   const resetScan = () => {
+    setMediaType(null);
     setScan(null);
     setPicked([]);
     setVariantOf({});
+    setFormat('mp4');
   };
-
-  const selectFormat = value => {
-    setFormat(value);
-    resetScan();
-  };
-
-  const toggleEntry = index => setPicked(previous =>
-    previous.includes(index) ? previous.filter(entry => entry !== index) : [...previous, index]
-  );
-
-  const chooseVariant = (index, variant) => setVariantOf(previous => ({ ...previous, [index]: variant }));
 
   useEffect(() => {
     async function setup() {
@@ -44,8 +40,9 @@ export default function App() {
         if (Platform.OS === 'android') {
           await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE);
         }
-        await YoutubeDlModule.initialize();
-        setStatus('> ready. awaiting input.');
+        const engine = await YoutubeDlModule.initialize();
+        const updateNote = engine.updateWarning  ? '\n> update unavailable; bundled engine active.' : '';
+        setStatus(`> ready. ${engine.version}.${updateNote}\n> awaiting input.`);
         setIsReady(true);
       } catch (e) {
         setStatus('> error: init failed.');
@@ -54,52 +51,83 @@ export default function App() {
     setup();
   }, []);
 
-  const handleYoink = async () => {
-    if (!url) return;
+  const analyzeUrl = async (targetUrl) => {
+    Keyboard.dismiss();
+    setIsLoading(true);
+    setStatus('> analyzing link...');
+    try {
+      const result = await YoutubeDlModule.analyzeLink(targetUrl);
+      setMediaType(result.type);
+      setFormat(result.type === 'image' ? 'image' : 'mp4');
+      setScan(result);
+      setPicked(result.entries.map(e => e.index));
+      setVariantOf({});
+      
+      if (result.type === 'image') {
+        const lines = result.entries.map(entry => {
+          const variants = entry.variants.length;
+          return `  [${entry.index}] ${dims(entry.variants[0])} ${String(entry.variants[0].ext).toUpperCase()}`
+            + (variants > 1 ? `  (${variants} resolutions)` : '');
+        });
+        setStatus(`> scan complete. ${result.count} image(s) found.\n${lines.join('\n')}\n> toggle what you want, then SAVE.`);
+      } else {
+        setStatus(`> ${result.count} video/audio source(s) found.\n> configure options, then SAVE.`);
+      }
+    } catch (e) {
+      resetScan();
+      setStatus(`> error: ${e.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isReady || !url.startsWith('http')) {
+      if (url === '') {
+        resetScan();
+        if (isReady) setStatus('> awaiting input.');
+      }
+      return;
+    }
+    if (!mediaType && !isLoading) {
+      analyzeUrl(url);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url, isReady]);
+
+  const toggleEntry = index => setPicked(previous =>
+    previous.includes(index) ? previous.filter(entry => entry !== index) : [...previous, index]
+  );
+
+  const chooseVariant = (index, variant) => setVariantOf(previous => ({ ...previous, [index]: variant }));
+
+  const handleSave = async () => {
+    if (!url || !mediaType || !scan) return;
     Keyboard.dismiss();
     setIsLoading(true);
 
     try {
-      if (isImage) {
-        if (!scan) {
-          setStatus('> scanning images...\n> resolving available resolutions...');
-          const result = await YoutubeDlModule.scanImages(url);
-          if (result.count === 0) {
-            resetScan();
-            setStatus('> no images found.\n> this link looks video or audio only.');
-            return;
-          }
-          setScan(result);
-          setPicked(result.entries.map(entry => entry.index));
-          setVariantOf({});
-          const lines = result.entries.map(entry => {
-            const variants = entry.variants.length;
-            return `  [${entry.index}] ${dims(entry.variants[0])} ${String(entry.variants[0].ext).toUpperCase()}`
-              + (variants > 1 ? `  (${variants} resolutions)` : '');
-          });
-          setStatus(`> scan complete. ${result.count} image(s) found.\n${lines.join('\n')}\n> toggle what you want, then SAVE.`);
-          return;
-        }
-
-        if (picked.length === 0) {
-          setStatus('> nothing selected.\n> enable at least one image.');
-          return;
-        }
-
-        const picks = picked.map(index => ({ entry: index, variant: variantOf[index] || 0 }));
-        setStatus(`> downloading ${picks.length} image(s)...\n> routing to /${folder}`);
-        const result = await YoutubeDlModule.downloadImages(url, { folder, picks });
-        const failed = result.failed ? `\n> failed: ${result.failed}` : '';
-        setStatus(`> success. ${result.count} image(s) saved.\n> ${result.folder}\n${failed}`);
-        resetScan();
-        setUrl('');
+      if (picked.length === 0 && (isImage || scan.count > 1)) {
+        setStatus('> nothing selected.\n> enable at least one item.');
         return;
       }
 
-      setStatus(`> fetching ${format.toUpperCase()} at ${quality} quality...\n> routing to /${folder}`);
-      const options = { format, quality, folder };
-      const result = await YoutubeDlModule.download(url, options);
-      setStatus(`> success.\n> ${result}`);
+      if (isImage) {
+        const picks = picked.map(index => ({ entry: index, variant: variantOf[index] || 0 }));
+        setStatus(`> downloading ${picks.length} image(s)...\n> routing to /${folder}`);
+        const result = await YoutubeDlModule.downloadImages(url, { folder, picks });
+        const failed = result.failed ? `
+> 
+> failed: ${result.failed}` : '';
+        setStatus(`> success. ${result.count} image(s) saved.\n> ${result.folder}
+${failed}`);
+      } else {
+        setStatus(`> fetching ${format.toUpperCase()} at ${quality} quality...\n> routing to /${folder}`);
+        const options = scan.count > 1 ? { format, quality, folder, items: picked } : { format, quality, folder };
+        const result = await YoutubeDlModule.download(url, options);
+        setStatus(`> success.\n> ${result}`);
+      }
+      resetScan();
       setUrl('');
     } catch (e) {
       setStatus(`> error: ${e.message}`);
@@ -138,7 +166,7 @@ export default function App() {
           <Text style={styles.subtitle}>opencode // extractor</Text>
         </View>
 
-        <TextInput
+                <TextInput
           style={styles.input}
           placeholder="target url..."
           placeholderTextColor="#555"
@@ -150,25 +178,19 @@ export default function App() {
           selectionColor="#FFF"
         />
 
-        <SelectionRow
-          title="FORMAT"
-          selected={format}
-          onSelect={selectFormat}
-          options={[
-            {label: 'MP4', value: 'mp4'},
-            {label: 'MP3', value: 'mp3'},
-            {label: 'IMG', value: 'image'}
-          ]}
-        />
+        {mediaType === 'video' && (
+          <SelectionRow
+            title="FORMAT"
+            selected={format}
+            onSelect={setFormat}
+            options={[
+              {label: 'MP4', value: 'mp4'},
+              {label: 'MP3', value: 'mp3'}
+            ]}
+          />
+        )}
 
-        {isImage ? (
-          <View style={styles.rowContainer}>
-            <Text style={styles.rowLabel}>RESOLUTION</Text>
-            <Text style={styles.autoNote}>
-              {scan ? `> ${picked.length}/${scan.count} selected // PER IMAGE BELOW` : '> SCAN TO CHOOSE'}
-            </Text>
-          </View>
-        ) : (
+        {mediaType === 'video' && (
           <SelectionRow
             title="QUALITY"
             selected={quality}
@@ -181,12 +203,18 @@ export default function App() {
           />
         )}
 
-        {isImage && scan && (
+        {mediaType && scan && (mediaType === 'image' || scan.count > 1) && (
           <View style={styles.pickerBox}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={styles.rowLabel}>{isImage ? 'IMAGES' : 'SLIDES'}</Text>
+              <Text style={styles.autoNote}>{`> ${picked.length}/${scan.count} selected`}</Text>
+            </View>
+            
             {scan.entries.map(entry => {
               const chosen = picked.includes(entry.index);
               const variant = variantOf[entry.index] || 0;
-              const current = entry.variants[variant] || entry.variants[0];
+              const current = isImage ? (entry.variants[variant] || entry.variants[0]) : null;
+              
               return (
                 <View key={entry.index} style={styles.entryBlock}>
                   <TouchableOpacity
@@ -197,12 +225,16 @@ export default function App() {
                     <Text style={[styles.entryFlag, chosen && styles.entryFlagOn]}>
                       {chosen ? '[x]' : '[ ]'}
                     </Text>
-                    <Text style={styles.entryIndex}>[{entry.index}]</Text>
-                    <Text style={[styles.entryMeta, !chosen && styles.entryMetaOff]}>
-                      {dims(current)} {String(current.ext).toUpperCase()}
+                    <Text style={styles.entryIndex}>
+                      {isImage ? `[${entry.index}]` : `SLIDE ${String(entry.index).padStart(2, '0')}`}
+                    </Text>
+                    <Text style={[styles.entryMeta, !chosen && styles.entryMetaOff]} numberOfLines={1}>
+                      {isImage 
+                        ? `${dims(current)} ${String(current.ext).toUpperCase()}`
+                        : entry.title + (entry.duration > 0 ? ` // ${entry.duration}s` : '')}
                     </Text>
                   </TouchableOpacity>
-                  {entry.variants.length > 1 && (
+                  {isImage && entry.variants.length > 1 && (
                     <View style={styles.variantRow}>
                       {entry.variants.map((option, position) => (
                         <TouchableOpacity
@@ -224,30 +256,34 @@ export default function App() {
           </View>
         )}
 
-        <SelectionRow
-          title="OUTPUT"
-          selected={folder}
-          onSelect={setFolder}
-          options={[
-            {label: 'DL', value: 'Downloads'},
-            {label: 'MSC', value: 'Music'},
-            {label: 'VID', value: 'Movies'}
-          ]}
-        />
+        {mediaType && (
+          <SelectionRow
+            title="OUTPUT"
+            selected={folder}
+            onSelect={setFolder}
+            options={[
+              {label: 'DOWNLOADS', value: 'Downloads'},
+              {label: 'MUSIC', value: 'Music'},
+              {label: 'MOVIES', value: 'Movies'}
+            ]}
+          />
+        )}
 
-        <TouchableOpacity
-          style={[styles.button, (!isReady || isLoading || !url) && styles.buttonDisabled]}
-          onPress={handleYoink}
-          disabled={!isReady || isLoading || !url}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#000" size="large" />
-          ) : (
-            <Text style={styles.buttonText}>
-              {isImage ? (scan ? `SAVE (${picked.length})` : 'SCAN') : 'EXECUTE'}
-            </Text>
-          )}
-        </TouchableOpacity>
+        {mediaType && (
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={handleSave}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#000" size="large" />
+            ) : (
+              <Text style={styles.buttonText}>
+                {scan.count > 1 ? `SAVE (${picked.length})` : 'SAVE'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
 
         <View style={styles.consoleBox}>
           <Text style={styles.statusText}>{status}</Text>
