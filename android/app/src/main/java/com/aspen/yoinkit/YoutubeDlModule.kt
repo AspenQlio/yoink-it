@@ -2,6 +2,7 @@ package com.aspen.yoinkit
 
 import android.os.Environment
 import com.facebook.react.bridge.*
+import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
@@ -102,7 +103,9 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                     }
                 }
 
-                YoutubeDL.getInstance().execute(request) { progress, etaInSeconds, line -> }
+                YoutubeDL.getInstance().execute(request) { progress, etaInSeconds, line ->
+                    sendProgressEvent(progress, etaInSeconds)
+                }
 
                 promise.resolve("Saved successfully to $folder/YoinkIt!")
             } catch (e: Exception) {
@@ -227,6 +230,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 val saved = ArrayList<String>(targets.size)
                 val failures = ArrayList<String>()
 
+                var completed = 0
                 targets.forEach { (entry, candidate) ->
                     val target = File(appDir, FileNames.build(scan.title, entry.index, candidate.ext))
                     try {
@@ -235,6 +239,8 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                     } catch (e: Exception) {
                         failures.add("${entry.index}: ${e.message}")
                     }
+                    completed++
+                    sendProgressEvent((completed.toFloat() / targets.size) * 100f)
                 }
 
                 if (saved.isEmpty()) {
@@ -302,5 +308,20 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         return File(baseDir, "YoinkIt").apply {
             if (!exists()) mkdirs()
         }
+    }
+
+    @ReactMethod
+    fun addListener(eventName: String) {}
+
+    @ReactMethod
+    fun removeListeners(count: Int) {}
+
+    private fun sendProgressEvent(progress: Float, eta: Long = 0L) {
+        reactApplicationContext
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit("DownloadProgress", Arguments.createMap().apply {
+                putDouble("progress", progress.toDouble())
+                putDouble("eta", eta.toDouble())
+            })
     }
 }
