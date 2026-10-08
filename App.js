@@ -61,17 +61,127 @@ export default function App() {
     setup();
   }, []);
 
-  const analyzeUrl = async (targetUrl) => {
+  
+  const getSpotifyToken = async () => {
+    const clientId = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID;
+    const clientSecret = process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_SECRET;
+    if (!clientId || !clientSecret) throw new Error("Missing Spotify credentials in .env");
+
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=client_credentials&client_id=${clientId}&client_secret=${clientSecret}`
+    });
+    const data = await response.json();
+    if (!data.access_token) throw new Error("Spotify Auth Failed");
+    return data.access_token;
+  };
+
+
+  const searchSpotify = async (query) => {
+    const token = await getSpotifyToken();
+    const res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=10`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (!data.tracks || data.tracks.items.length === 0) throw new Error("No tracks found");
+    
+    return {
+      type: 'video',
+      count: data.tracks.items.length,
+      isSpotify: true,
+      isSearch: true,
+      entries: data.tracks.items.map((track, idx) => ({
+        index: idx + 1,
+        title: `${track.name} - ${track.artists[0].name}`,
+        _query: `ytsearch1:${track.name} ${track.artists[0].name}`
+      }))
+    };
+  };
+
+  const parseSpotifyUrl = async (targetUrl) => {
+
+    const token = await getSpotifyToken();
+    const headers = { 'Authorization': `Bearer ${token}` };
+    const queries = [];
+    
+    // Extracción de ID simple
+    const getID = (url) => {
+      const match = url.match(/(track|album|playlist)\/([a-zA-Z0-9]+)/);
+      return match ? { type: match[1], id: match[2] } : null;
+    };
+
+    const parsed = getID(targetUrl);
+    if (!parsed) throw new Error("Invalid Spotify link");
+
+    if (parsed.type === 'track') {
+      const res = await fetch(`https://api.spotify.com/v1/tracks/${parsed.id}`, { headers });
+      const track = await res.json();
+      queries.push({ title: track.name, artist: track.artists[0].name });
+    } else if (parsed.type === 'album') {
+      const res = await fetch(`https://api.spotify.com/v1/albums/${parsed.id}/tracks`, { headers });
+      const album = await res.json();
+      album.items.forEach(track => {
+        queries.push({ title: track.name, artist: track.artists[0].name });
+      });
+    } else if (parsed.type === 'playlist') {
+      let nextUrl = `https://api.spotify.com/v1/playlists/${parsed.id}/tracks`;
+      while (nextUrl) {
+        const res = await fetch(nextUrl, { headers });
+        const playlist = await res.json();
+        playlist.items.forEach(item => {
+          if (item.track) {
+            queries.push({ title: item.track.name, artist: item.track.artists[0].name });
+          }
+        });
+        nextUrl = playlist.next; // paginación
+      }
+    }
+
+    if (queries.length === 0) throw new Error("No tracks found");
+    
+    return {
+      type: 'video',
+      count: queries.length,
+      isSpotify: true,
+      isSearch: true,
+      entries: queries.map((q, idx) => ({
+        index: idx + 1,
+        title: `${q.title} - ${q.artist}`,
+        _query: `ytsearch1:${q.title} ${q.artist}`
+      }))
+    };
+  };
+
+const analyzeUrl = async (targetUrl) => {
     Keyboard.dismiss();
     setIsLoading(true);
     setDlProgress(null);
     setStatus('> analyzing link...');
+    
     try {
-      const result = await YoutubeDlModule.analyzeLink(targetUrl);
+      let result;
+      if (!targetUrl.startsWith('http')) {
+        setStatus('> searching spotify for: ' + targetUrl + '...');
+        result = await searchSpotify(targetUrl);
+      } else if (targetUrl.includes('spotify.com')) {
+
+        setStatus('> spotify detected. resolving via API...');
+        result = await parseSpotifyUrl(targetUrl);
+      } else {
+        result = await YoutubeDlModule.analyzeLink(targetUrl);
+      }
+
       setMediaType(result.type);
-      setFormat(result.type === 'image' ? 'image' : 'mp4');
+      if (result.type === 'image') {
+        setFormat('image');
+      } else if (result.isSpotify) {
+        setFormat('mp3');
+      } else {
+        setFormat('mp4');
+      }
       setScan(result);
-      setPicked(result.entries.map(e => e.index));
+      setPicked(result.isSearch ? [] : result.entries.map(e => e.index));
       setVariantOf({});
       
       if (result.type === 'image') {
@@ -129,19 +239,29 @@ export default function App() {
         const picks = picked.map(index => ({ entry: index, variant: variantOf[index] || 0 }));
         setStatus(`> downloading ${picks.length} image(s)...\n> routing to /${folder}`);
         const result = await YoutubeDlModule.downloadImages(url, { folder, picks });
-        const failed = result.failed ? `
-> 
-> failed: ${result.failed}` : '';
-        setStatus(`> success. ${result.count} image(s) saved.\n> ${result.folder}
-${failed}`);
+        const failed = result.failed ? `\n> \n> failed: ${result.failed}` : '';
+        setStatus(`> success. ${result.count} image(s) saved.\n> ${result.folder}\n${failed}`);
+      } else if (scan.isSpotify) {
+        setStatus(`> fetching ${format.toUpperCase()} at ${quality} quality...\n> routing to /${folder}`);
+        let successCount = 0;
+        for (const index of picked) {
+          const entry = scan.entries.find(e => e.index === index);
+          if (entry) {
+            setStatus(`> downloading [${index}/${picked.length}]: ${entry.title}...`);
+            await YoutubeDlModule.download(entry._query, { format, quality, folder });
+            successCount++;
+          }
+        }
+        setStatus(`> success. ${successCount} track(s) saved to /${folder}.`);
       } else {
+
         setStatus(`> fetching ${format.toUpperCase()} at ${quality} quality...\n> routing to /${folder}`);
         const options = scan.count > 1 ? { format, quality, folder, items: picked } : { format, quality, folder };
         const result = await YoutubeDlModule.download(url, options);
         setStatus(`> success.\n> ${result}`);
       }
-      resetScan();
-      setUrl('');
+      // resetScan();
+      // setUrl(''); // Comentado para que el mensaje de éxito no desaparezca instantáneamente
     } catch (e) {
       setStatus(`> error: ${e.message}`);
     } finally {
@@ -172,7 +292,7 @@ ${failed}`);
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" backgroundColor="#000F0F" />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
 
         <View style={styles.header}>
@@ -182,14 +302,20 @@ ${failed}`);
 
                 <TextInput
           style={styles.input}
-          placeholder="target url..."
+          placeholder="target url or search song..."
           placeholderTextColor="#555"
           value={url}
           onChangeText={text => { setUrl(text); resetScan(); }}
+          onSubmitEditing={() => {
+            if (!url.startsWith('http') && url.trim().length > 0) {
+              analyzeUrl(url);
+            }
+          }}
+          returnKeyType="search"
           editable={!isLoading && isReady}
           autoCapitalize="none"
           autoCorrect={false}
-          selectionColor="#FFF"
+          selectionColor="#68C7EC"
         />
 
         {mediaType === 'video' && (
@@ -220,7 +346,7 @@ ${failed}`);
         {mediaType && scan && (mediaType === 'image' || scan.count > 1) && (
           <View style={styles.pickerBox}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={styles.rowLabel}>{isImage ? 'IMAGES' : 'SLIDES'}</Text>
+              <Text style={styles.rowLabel}>{isImage ? 'IMAGES' : (scan.isSpotify ? 'TRACKS' : 'MEDIA')}</Text>
               <Text style={styles.autoNote}>{`> ${picked.length}/${scan.count} selected`}</Text>
             </View>
             
@@ -240,7 +366,7 @@ ${failed}`);
                       {chosen ? '[x]' : '[ ]'}
                     </Text>
                     <Text style={styles.entryIndex}>
-                      {isImage ? `[${entry.index}]` : `SLIDE ${String(entry.index).padStart(2, '0')}`}
+                      {isImage ? `[${entry.index}]` : (scan.isSpotify ? `TRACK ${String(entry.index).padStart(2, '0')}` : `ITEM ${String(entry.index).padStart(2, '0')}`)}
                     </Text>
                     <Text style={[styles.entryMeta, !chosen && styles.entryMetaOff]} numberOfLines={1}>
                       {isImage 
@@ -324,37 +450,37 @@ ${failed}`);
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000000' },
+  container: { flex: 1, backgroundColor: '#000F0F' },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
   header: { marginBottom: 30 },
-  title: { fontSize: 48, fontWeight: '900', color: '#FFFFFF', letterSpacing: -2 },
+  title: { fontSize: 48, fontWeight: '900', color: '#68C7EC', letterSpacing: -2 },
   subtitle: { fontSize: 14, color: '#777777', marginTop: -4, fontFamily: 'monospace', letterSpacing: 1 },
-  input: { backgroundColor: '#0A0A0A', color: '#FFFFFF', fontFamily: 'monospace', fontSize: 16, padding: 16, borderRadius: 0, borderWidth: 1, borderColor: '#333333', marginBottom: 24 },
+  input: { backgroundColor: '#000F0F', color: '#FFFFFF', fontFamily: 'monospace', fontSize: 16, padding: 16, borderRadius: 0, borderWidth: 1, borderColor: '#1A3333', marginBottom: 24 },
   rowContainer: { marginBottom: 16 },
   rowLabel: { color: '#777777', fontSize: 12, marginBottom: 8, fontFamily: 'monospace', letterSpacing: 1 },
   autoNote: { color: '#555555', fontSize: 12, fontFamily: 'monospace', letterSpacing: 1 },
-  pickerBox: { borderWidth: 1, borderColor: '#222222', padding: 12, marginBottom: 20 },
+  pickerBox: { borderWidth: 1, borderColor: '#1A3333', padding: 12, marginBottom: 20 },
   entryBlock: { marginBottom: 10 },
   entryRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
   entryFlag: { color: '#555555', fontSize: 14, fontFamily: 'monospace', marginRight: 10 },
-  entryFlagOn: { color: '#FFFFFF' },
+  entryFlagOn: { color: '#68C7EC' },
   entryIndex: { color: '#FFFFFF', fontSize: 13, fontFamily: 'monospace', fontWeight: 'bold', marginRight: 10 },
   entryMeta: { color: '#CCCCCC', fontSize: 13, fontFamily: 'monospace', flex: 1 },
   entryMetaOff: { color: '#444444' },
   variantRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: 24 },
-  variantChip: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#050505', borderWidth: 1, borderColor: '#333333' },
-  variantChipOn: { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },
+  variantChip: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#000F0F', borderWidth: 1, borderColor: '#1A3333' },
+  variantChipOn: { backgroundColor: '#68C7EC', borderColor: '#68C7EC' },
   variantText: { color: '#777777', fontSize: 11, fontFamily: 'monospace' },
-  variantTextOn: { color: '#000000', fontWeight: 'bold' },
+  variantTextOn: { color: '#000F0F', fontWeight: 'bold' },
   buttonGroup: { flexDirection: 'row', gap: 8 },
-  optButton: { flex: 1, paddingVertical: 12, backgroundColor: '#050505', borderRadius: 0, alignItems: 'center', borderWidth: 1, borderColor: '#333333' },
-  optButtonSelected: { backgroundColor: '#FFFFFF', borderColor: '#FFFFFF' },
+  optButton: { flex: 1, paddingVertical: 12, backgroundColor: '#000F0F', borderRadius: 0, alignItems: 'center', borderWidth: 1, borderColor: '#1A3333' },
+  optButtonSelected: { backgroundColor: '#68C7EC', borderColor: '#68C7EC' },
   optText: { color: '#777777', fontSize: 13, fontFamily: 'monospace', fontWeight: 'bold' },
-  optTextSelected: { color: '#000000' },
-  button: { backgroundColor: '#FFFFFF', paddingVertical: 18, borderRadius: 0, alignItems: 'center', marginTop: 10 },
+  optTextSelected: { color: '#000F0F' },
+  button: { backgroundColor: '#68C7EC', paddingVertical: 18, borderRadius: 0, alignItems: 'center', marginTop: 10 },
   buttonDisabled: { backgroundColor: '#222222' },
-  buttonText: { color: '#000000', fontSize: 16, fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: 2 },
-  consoleBox: { marginTop: 30, backgroundColor: '#000000', padding: 16, borderWidth: 1, borderColor: '#222222' },
+  buttonText: { color: '#000F0F', fontSize: 16, fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: 2 },
+  consoleBox: { marginTop: 30, backgroundColor: '#000F0F', padding: 16, borderWidth: 1, borderColor: '#1A3333' },
   statusText: { color: '#CCCCCC', fontFamily: 'monospace', fontSize: 13, lineHeight: 20 },
   disclaimerBox: { marginTop: 40, borderTopWidth: 1, borderTopColor: '#222222', paddingTop: 20 },
   disclaimerText: { color: '#444444', fontFamily: 'monospace', fontSize: 10, lineHeight: 14, textAlign: 'justify' }

@@ -40,7 +40,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 val youtubeDl = YoutubeDL.getInstance()
                 youtubeDl.init(reactApplicationContext)
                 val updateWarning = try {
-                    youtubeDl.updateYoutubeDL(reactApplicationContext, YoutubeDL.UpdateChannel._STABLE)
+                    youtubeDl.updateYoutubeDL(reactApplicationContext, YoutubeDL.UpdateChannel._NIGHTLY)
                     null
                 } catch (e: YoutubeDLException) {
                     e.message ?: "yt-dlp update failed"
@@ -73,6 +73,8 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 }
 
                 val request = YoutubeDLRequest(url)
+                request.addOption("--extractor-args", "youtube:player_client=visionos,android_creator,android,tv,web")
+                request.addOption("--rm-cache-dir")
                 val appDir = resolveOutputDir(folder)
                 val selectedItems = if (options.hasKey("items")) options.getArray("items") else null
                 val itemIndices = if (selectedItems == null) emptyList() else {
@@ -119,6 +121,8 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         moduleScope.launch {
             try {
                 val request = YoutubeDLRequest(url)
+                request.addOption("--extractor-args", "youtube:player_client=visionos,android_creator,android,tv,web")
+                request.addOption("--rm-cache-dir")
                 request.addOption("--dump-json")
                 request.addOption("--flat-playlist")
                 request.addOption("--skip-download")
