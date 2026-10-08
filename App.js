@@ -337,7 +337,7 @@ const analyzeUrl = async (targetUrl) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#000F0F" />
+      <StatusBar barStyle="light-content" backgroundColor="#0B5497" />
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
 
         <View style={styles.header}>
@@ -464,7 +464,7 @@ const analyzeUrl = async (targetUrl) => {
               <ActivityIndicator color="#000" size="large" />
             ) : (
               <Text style={styles.buttonText}>
-                {scan.count > 1 ? `ENQUEUE (${picked.length})` : 'ENQUEUE'}
+                {scan.count > 1 ? `YOINK! (${picked.length})` : 'YOINK!'}
               </Text>
             )}
           </TouchableOpacity>
@@ -516,46 +516,46 @@ const analyzeUrl = async (targetUrl) => {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000F0F' },
+  container: { flex: 1, backgroundColor: '#0B5497' },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
   header: { marginBottom: 30 },
-  title: { fontSize: 48, fontWeight: '900', color: '#68C7EC', letterSpacing: -2 },
-  subtitle: { fontSize: 14, color: '#777777', marginTop: -4, fontFamily: 'monospace', letterSpacing: 1 },
-  input: { backgroundColor: '#000F0F', color: '#FFFFFF', fontFamily: 'monospace', fontSize: 16, padding: 16, borderRadius: 0, borderWidth: 1, borderColor: '#1A3333', marginBottom: 24 },
+  title: { fontSize: 48, fontWeight: '900', color: '#FFFEF9', letterSpacing: -2 },
+  subtitle: { fontSize: 14, color: '#D0DCE5', marginTop: -4, fontFamily: 'monospace', letterSpacing: 1 },
+  input: { backgroundColor: '#0B5497', color: '#FFFEF9', fontFamily: 'monospace', fontSize: 16, padding: 16, borderRadius: 0, borderWidth: 1, borderColor: '#FFFEF9', marginBottom: 24 },
   rowContainer: { marginBottom: 16 },
-  rowLabel: { color: '#777777', fontSize: 12, marginBottom: 8, fontFamily: 'monospace', letterSpacing: 1 },
-  autoNote: { color: '#555555', fontSize: 12, fontFamily: 'monospace', letterSpacing: 1 },
-  pickerBox: { borderWidth: 1, borderColor: '#1A3333', padding: 12, marginBottom: 20 },
+  rowLabel: { color: '#FFFEF9', fontSize: 12, marginBottom: 8, fontFamily: 'monospace', letterSpacing: 1 },
+  autoNote: { color: '#D0DCE5', fontSize: 12, fontFamily: 'monospace', letterSpacing: 1 },
+  pickerBox: { borderWidth: 1, borderColor: '#FFFEF9', padding: 12, marginBottom: 20 },
   entryBlock: { marginBottom: 10 },
   entryRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  entryFlag: { color: '#555555', fontSize: 14, fontFamily: 'monospace', marginRight: 10 },
-  entryFlagOn: { color: '#68C7EC' },
-  entryIndex: { color: '#FFFFFF', fontSize: 13, fontFamily: 'monospace', fontWeight: 'bold', marginRight: 10 },
-  entryMeta: { color: '#CCCCCC', fontSize: 13, fontFamily: 'monospace', flex: 1 },
-  entryMetaOff: { color: '#444444' },
+  entryFlag: { color: '#D0DCE5', fontSize: 14, fontFamily: 'monospace', marginRight: 10 },
+  entryFlagOn: { color: '#FFFEF9' },
+  entryIndex: { color: '#FFFEF9', fontSize: 13, fontFamily: 'monospace', fontWeight: 'bold', marginRight: 10 },
+  entryMeta: { color: '#FFFEF9', fontSize: 13, fontFamily: 'monospace', flex: 1 },
+  entryMetaOff: { color: '#84A9CB' },
   variantRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, marginLeft: 24 },
-  variantChip: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#000F0F', borderWidth: 1, borderColor: '#1A3333' },
-  variantChipOn: { backgroundColor: '#68C7EC', borderColor: '#68C7EC' },
-  variantText: { color: '#777777', fontSize: 11, fontFamily: 'monospace' },
-  variantTextOn: { color: '#000F0F', fontWeight: 'bold' },
+  variantChip: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#0B5497', borderWidth: 1, borderColor: '#FFFEF9' },
+  variantChipOn: { backgroundColor: '#FFFEF9', borderColor: '#FFFEF9' },
+  variantText: { color: '#FFFEF9', fontSize: 11, fontFamily: 'monospace' },
+  variantTextOn: { color: '#0B5497', fontWeight: 'bold' },
   buttonGroup: { flexDirection: 'row', gap: 8 },
-  optButton: { flex: 1, paddingVertical: 12, backgroundColor: '#000F0F', borderRadius: 0, alignItems: 'center', borderWidth: 1, borderColor: '#1A3333' },
-  optButtonSelected: { backgroundColor: '#68C7EC', borderColor: '#68C7EC' },
-  optText: { color: '#777777', fontSize: 13, fontFamily: 'monospace', fontWeight: 'bold' },
-  optTextSelected: { color: '#000F0F' },
-  button: { backgroundColor: '#68C7EC', paddingVertical: 18, borderRadius: 0, alignItems: 'center', marginTop: 10 },
-  buttonDisabled: { backgroundColor: '#222222' },
-  buttonText: { color: '#000F0F', fontSize: 16, fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: 2 },
-  consoleBox: { marginTop: 30, backgroundColor: '#000F0F', padding: 16, borderWidth: 1, borderColor: '#1A3333' },
-  statusText: { color: '#CCCCCC', fontFamily: 'monospace', fontSize: 13, lineHeight: 20 },
-  queueBox: { marginTop: 20, borderWidth: 1, borderColor: '#1A3333', padding: 12, backgroundColor: '#051111' },
-  queueHeader: { color: '#68C7EC', fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold', letterSpacing: 1 },
-  clearText: { color: '#555555', fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' },
+  optButton: { flex: 1, paddingVertical: 12, backgroundColor: '#0B5497', borderRadius: 0, alignItems: 'center', borderWidth: 1, borderColor: '#FFFEF9' },
+  optButtonSelected: { backgroundColor: '#FFFEF9', borderColor: '#FFFEF9' },
+  optText: { color: '#FFFEF9', fontSize: 13, fontFamily: 'monospace', fontWeight: 'bold' },
+  optTextSelected: { color: '#0B5497' },
+  button: { backgroundColor: '#FFFEF9', paddingVertical: 18, borderRadius: 0, alignItems: 'center', marginTop: 10 },
+  buttonDisabled: { backgroundColor: '#5582A9' },
+  buttonText: { color: '#0B5497', fontSize: 16, fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: 2 },
+  consoleBox: { marginTop: 30, backgroundColor: '#0B5497', padding: 16, borderWidth: 1, borderColor: '#FFFEF9' },
+  statusText: { color: '#FFFEF9', fontFamily: 'monospace', fontSize: 13, lineHeight: 20 },
+  queueBox: { marginTop: 20, borderWidth: 1, borderColor: '#FFFEF9', padding: 12, backgroundColor: '#0B5497' },
+  queueHeader: { color: '#FFFEF9', fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold', letterSpacing: 1 },
+  clearText: { color: '#D0DCE5', fontFamily: 'monospace', fontSize: 12, fontWeight: 'bold' },
   jobRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  jobStatus: { color: '#777777', fontFamily: 'monospace', fontSize: 12, marginRight: 8, width: 50 },
-  jobTitle: { color: '#CCCCCC', fontFamily: 'monospace', fontSize: 12 },
-  jobProgress: { color: '#68C7EC', fontFamily: 'monospace', fontSize: 10, marginTop: 2 },
+  jobStatus: { color: '#D0DCE5', fontFamily: 'monospace', fontSize: 12, marginRight: 8, width: 50 },
+  jobTitle: { color: '#FFFEF9', fontFamily: 'monospace', fontSize: 12 },
+  jobProgress: { color: '#FFFEF9', fontFamily: 'monospace', fontSize: 10, marginTop: 2 },
   jobError: { color: '#FF5555', fontFamily: 'monospace', fontSize: 10, marginTop: 2 },
-  disclaimerBox: { marginTop: 40, borderTopWidth: 1, borderTopColor: '#222222', paddingTop: 20 },
-  disclaimerText: { color: '#444444', fontFamily: 'monospace', fontSize: 10, lineHeight: 14, textAlign: 'justify' }
+  disclaimerBox: { marginTop: 40, borderTopWidth: 1, borderTopColor: '#84A9CB', paddingTop: 20 },
+  disclaimerText: { color: '#D0DCE5', fontFamily: 'monospace', fontSize: 10, lineHeight: 14, textAlign: 'justify' }
 });
