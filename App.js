@@ -118,6 +118,33 @@ export default function App() {
   };
 
 
+  const resolveTwitterViaProxy = async (targetUrl) => {
+    const proxyUrl = process.env.EXPO_PUBLIC_X_PROXY_URL;
+    const apiKey = process.env.EXPO_PUBLIC_X_PROXY_KEY;
+    
+    const res = await fetch(`${proxyUrl}?url=${encodeURIComponent(targetUrl)}`, {
+      headers: { 'x-api-key': apiKey }
+    });
+    
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Proxy failed to resolve Twitter link');
+    }
+    
+    return {
+      type: 'video',
+      count: 1,
+      isProxy: true,
+      entries: [{
+        index: 0,
+        id: 'twitter_proxied',
+        title: data.title || 'X Video',
+        directUrl: data.download_url,
+        variants: [{ format_id: 'best', ext: 'mp4', resolution: 'proxy-best' }]
+      }]
+    };
+  };
+
   const searchSpotify = async (query) => {
     const token = await getSpotifyToken();
     const res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=10`, {
@@ -206,6 +233,9 @@ const analyzeUrl = async (targetUrl) => {
 
         setStatus('> spotify detected. resolving via API...');
         result = await parseSpotifyUrl(targetUrl);
+      } else if ((targetUrl.includes('twitter.com') || targetUrl.includes('x.com')) && process.env.EXPO_PUBLIC_X_PROXY_URL) {
+        setStatus('> restricted X/Twitter detected. resolving via proxy...');
+        result = await resolveTwitterViaProxy(targetUrl);
       } else {
         result = await YoutubeDlModule.analyzeLink(targetUrl);
       }
@@ -302,7 +332,7 @@ const analyzeUrl = async (targetUrl) => {
         id: Date.now().toString(),
         title: scan.count > 1 ? `${picked.length} Video(s) from Playlist` : (scan.entries[0]?.title || 'Video'),
         type: 'video',
-        url,
+        url: scan.isProxy ? scan.entries[0].directUrl : url,
         options: scan.count > 1 ? { format, quality, folder, items: picked } : { format, quality, folder },
         status: 'pending',
         progress: 0
