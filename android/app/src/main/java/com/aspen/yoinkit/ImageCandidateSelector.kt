@@ -78,9 +78,13 @@ object ImageCandidateSelector {
         // yt-dlp orders thumbnails worst first, so reversing lets the later entry win ties.
         val thumbnails = thumbnailCandidates(entry.optJSONArray("thumbnails"))
             .reversed()
-            .sortedByDescending { it.area }
-        val seen = HashSet<String>()
-        return (formats + thumbnails).filter { seen.add(it.url) }
+            .sortedByDescending { if (it.area == 0) Int.MAX_VALUE else it.area }
+        
+        val seenUrls = HashSet<String>()
+        val seenDims = HashSet<String>()
+        return (formats + thumbnails).filter {
+            seenUrls.add(it.url) && seenDims.add("${it.width}x${it.height}")
+        }
     }
 
     /** Carousel indexes are the original entry positions, so gaps appear for video-only entries. */
@@ -110,8 +114,17 @@ object ImageCandidateSelector {
         for (i in 0 until thumbnails.length()) {
             val thumbnail = thumbnails.optJSONObject(i) ?: continue
             val url = thumbnail.optString("url").takeIf { it.isNotBlank() } ?: continue
+            var w = thumbnail.optInt("width", 0)
+            var h = thumbnail.optInt("height", 0)
+            if (w == 0 || h == 0) {
+                val match = "[sp](\\d+)x(\\d+)".toRegex().find(url)
+                if (match != null) {
+                    w = match.groupValues[1].toIntOrNull() ?: 0
+                    h = match.groupValues[2].toIntOrNull() ?: 0
+                }
+            }
             candidates.add(
-                ImageCandidate(url, extFromUrl(url), thumbnail.optInt("width"), thumbnail.optInt("height"))
+                ImageCandidate(url, extFromUrl(url), w, h)
             )
         }
         return candidates
