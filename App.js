@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, ActivityIndicator, StatusBar, Keyboard, PermissionsAndroid, Platform, ScrollView } from 'react-native';
-import { NativeModules } from 'react-native';
+import { NativeModules, NativeEventEmitter } from 'react-native';
 
 const { YoutubeDlModule } = NativeModules;
 
@@ -10,6 +10,7 @@ export default function App() {
   const [url, setUrl] = useState('');
   const [status, setStatus] = useState('> system init...');
   const [isLoading, setIsLoading] = useState(false);
+  const [dlProgress, setDlProgress] = useState(null);
   const [isReady, setIsReady] = useState(false);
 
   // User selections
@@ -34,6 +35,15 @@ export default function App() {
     setFormat('mp4');
   };
 
+  
+  useEffect(() => {
+    const eventEmitter = new NativeEventEmitter(YoutubeDlModule);
+    const subscription = eventEmitter.addListener('DownloadProgress', (event) => {
+      setDlProgress(event);
+    });
+    return () => subscription.remove();
+  }, []);
+
   useEffect(() => {
     async function setup() {
       try {
@@ -54,6 +64,7 @@ export default function App() {
   const analyzeUrl = async (targetUrl) => {
     Keyboard.dismiss();
     setIsLoading(true);
+    setDlProgress(null);
     setStatus('> analyzing link...');
     try {
       const result = await YoutubeDlModule.analyzeLink(targetUrl);
@@ -78,6 +89,7 @@ export default function App() {
       setStatus(`> error: ${e.message}`);
     } finally {
       setIsLoading(false);
+      setDlProgress(null);
     }
   };
 
@@ -105,6 +117,7 @@ export default function App() {
     if (!url || !mediaType || !scan) return;
     Keyboard.dismiss();
     setIsLoading(true);
+    setDlProgress(null);
 
     try {
       if (picked.length === 0 && (isImage || scan.count > 1)) {
@@ -133,6 +146,7 @@ ${failed}`);
       setStatus(`> error: ${e.message}`);
     } finally {
       setIsLoading(false);
+      setDlProgress(null);
     }
   };
 
@@ -279,7 +293,7 @@ ${failed}`);
               <ActivityIndicator color="#000" size="large" />
             ) : (
               <Text style={styles.buttonText}>
-                {scan.count > 1 ? `SAVE (${picked.length})` : 'SAVE'}
+                {scan.count > 1 ? `YOINK (${picked.length})` : 'YOINK'}
               </Text>
             )}
           </TouchableOpacity>
@@ -287,6 +301,14 @@ ${failed}`);
 
         <View style={styles.consoleBox}>
           <Text style={styles.statusText}>{status}</Text>
+          {dlProgress && (
+            <Text style={styles.statusText}>
+              {`[${'#'.repeat(Math.floor(Math.max(0, Math.min(100, dlProgress.progress)) / 5))}${(
+                '.'.repeat(20 - Math.floor(Math.max(0, Math.min(100, dlProgress.progress)) / 5))
+              )}] ${Math.max(0, Math.min(100, dlProgress.progress)).toFixed(1)}%`}
+              {dlProgress.eta > 0 ? ` ETA: ${dlProgress.eta}s` : ''}
+            </Text>
+          )}
         </View>
 
         <View style={styles.disclaimerBox}>

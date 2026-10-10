@@ -7,6 +7,10 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 ## [4.0.0] - 2026-10-04
 
 ### Added
+- Real-time download progress bar in the console box for both videos and images.
+- Replaced generic "SAVE" and "EXECUTE" button texts with application-branded "YOINK".
+
+### Added
 - Intelligent auto-scan: pasting a URL automatically detects the media type (image, video, or playlist) and reveals the appropriate format/quality options.
 
 ### Changed
