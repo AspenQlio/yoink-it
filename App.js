@@ -26,6 +26,7 @@ export default function App() {
   // Queue state
   const [queue, setQueue] = useState([]);
   const [activeJobId, setActiveJobId] = useState(null);
+  const [isQueueRunning, setIsQueueRunning] = useState(false);
 
   const isImage = mediaType === 'image';
   const isVideo = mediaType === 'video';
@@ -50,15 +51,13 @@ export default function App() {
 
   useEffect(() => {
     const processNext = async () => {
-      if (activeJobId) return;
+      if (!isQueueRunning || activeJobId) return;
       
-      let nextJob = null;
-      setQueue(prev => {
-        nextJob = prev.find(j => j.status === 'pending');
-        return prev;
-      });
-
-      if (!nextJob) return;
+      const nextJob = queue.find(j => j.status === 'pending');
+      if (!nextJob) {
+        setIsQueueRunning(false);
+        return;
+      }
 
       setActiveJobId(nextJob.id);
       setQueue(prev => prev.map(j => j.id === nextJob.id ? { ...j, status: 'downloading' } : j));
@@ -80,7 +79,7 @@ export default function App() {
       }
     };
     processNext();
-  }, [queue, activeJobId]);
+  }, [queue, activeJobId, isQueueRunning]);
 
   useEffect(() => {
     async function setup() {
@@ -492,7 +491,7 @@ const analyzeUrl = async (targetUrl) => {
               <ActivityIndicator color="#000" size="large" />
             ) : (
               <Text style={styles.buttonText}>
-                {scan.count > 1 ? `YOINK! (${picked.length})` : 'YOINK!'}
+                {scan.count > 1 ? `ADD TO QUEUE (${picked.length})` : 'ADD TO QUEUE'}
               </Text>
             )}
           </TouchableOpacity>
@@ -506,9 +505,16 @@ const analyzeUrl = async (targetUrl) => {
           <View style={styles.queueBox}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Text style={styles.queueHeader}>QUEUE ({queue.filter(j => j.status === 'pending').length} PENDING)</Text>
-              <TouchableOpacity onPress={() => setQueue(q => q.filter(j => j.status !== 'done' && j.status !== 'error'))}>
-                <Text style={styles.clearText}>[CLEAR]</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 16 }}>
+                {queue.some(j => j.status === 'pending') && !isQueueRunning && (
+                  <TouchableOpacity onPress={() => setIsQueueRunning(true)}>
+                    <Text style={[styles.clearText, { color: '#FFFEF9' }]}>[YOINK ALL!]</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity onPress={() => setQueue(q => q.filter(j => j.status !== 'done' && j.status !== 'error'))}>
+                  <Text style={styles.clearText}>[CLEAR]</Text>
+                </TouchableOpacity>
+              </View>
             </View>
             {queue.map(job => (
               <View key={job.id} style={styles.jobRow}>
