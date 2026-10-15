@@ -6,13 +6,15 @@ This application is an unofficial port inspired by the [yoinks](https://github.c
 
 ## Features
 
+- **Asynchronous Queue Management:** Add multiple files or full playlists to a staging queue, then trigger a bulk extraction via the 'YOINK ALL!' execution workflow without blocking the UI.
 - **Universal Music Search:** Type a song name (e.g. "Mac Miller Stay") to instantly search Spotify and extract original FLAC/MP3 files.
+- **Playlist Expansion:** Automatically parses Spotify and YouTube playlists, allowing selective or bulk extraction of tracks.
 - **Zero-Config Extraction:** Paste a URL, execute, and enjoy.
+- **Serverless X Proxy:** Includes a deployable Cloudflare Worker to bypass restricted media walls securely without exposing client IPs.
 - **Multi-Platform Support:** Works with Spotify, YouTube, X (Twitter), Instagram, Threads, TikTok, and more.
-- **Format Control:** Extract MP4 (Video) or MP3/Audio.
+- **Native Gallery Sync:** Integrates with Android's MediaScannerConnection so extracted files appear immediately in the system gallery.
 - **Quality Engine:** Toggle between MAX, MID, and LOW outputs to save bandwidth.
-- **Native Routing:** Save directly to Android's native `Downloads`, `Music`, or `Movies` directories.
-- **Pale Azure Aesthetic:** A beautiful monochromatic UI blending Rich Black (`#000F0F`) and Pale Azure (`#68C7EC`).
+- **Ocean Aesthetic:** A minimalist, monochromatic UI blending deep Ocean Blue (`#0B5497`) and Ivory (`#FFFEF9`).
 
 ## Architecture
 
