@@ -63,6 +63,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 val format = if (options.hasKey("format")) options.getString("format") else "mp4"
                 val quality = if (options.hasKey("quality")) options.getString("quality") else "high"
                 val folder = if (options.hasKey("folder")) options.getString("folder") else "Downloads"
+                val cookiesPath = if (options.hasKey("cookies")) options.getString("cookies") else null
 
                 if (format == "image") {
                     promise.reject(
@@ -73,8 +74,12 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 }
 
                 val request = YoutubeDLRequest(url)
-                request.addOption("--extractor-args", "youtube:player_client=visionos,android_creator,android,tv,web")
+                request.addOption("--extractor-args", "youtube:player_client=android,web,tv")
+                request.addOption("--force-ipv4")
                 request.addOption("--rm-cache-dir")
+                if (!cookiesPath.isNullOrBlank()) {
+                    request.addOption("--cookies", cookiesPath.removePrefix("file://"))
+                }
                 val appDir = resolveOutputDir(folder)
                 val selectedItems = if (options.hasKey("items")) options.getArray("items") else null
                 val itemIndices = if (selectedItems == null) emptyList() else {
@@ -109,6 +114,8 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                     sendProgressEvent(progress, etaInSeconds)
                 }
 
+                scanMediaFiles(appDir)
+
                 promise.resolve("Saved successfully to $folder/YoinkIt!")
             } catch (e: Exception) {
                 promise.reject("DOWNLOAD_ERROR", YtDlpErrors.userMessage(e.message), e)
@@ -117,12 +124,17 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     }
 
     @ReactMethod
-    fun analyzeLink(url: String, promise: Promise) {
+    fun analyzeLink(url: String, options: ReadableMap, promise: Promise) {
         moduleScope.launch {
             try {
+                val cookiesPath = if (options.hasKey("cookies")) options.getString("cookies") else null
                 val request = YoutubeDLRequest(url)
-                request.addOption("--extractor-args", "youtube:player_client=visionos,android_creator,android,tv,web")
+                request.addOption("--extractor-args", "youtube:player_client=android,web,tv")
+                request.addOption("--force-ipv4")
                 request.addOption("--rm-cache-dir")
+                if (!cookiesPath.isNullOrBlank()) {
+                    request.addOption("--cookies", cookiesPath.removePrefix("file://"))
+                }
                 request.addOption("--dump-json")
                 request.addOption("--flat-playlist")
                 request.addOption("--skip-download")
@@ -161,18 +173,24 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 }
 
                 val title = jsons.firstOrNull()?.optString("title").orEmpty().ifBlank { "yoink" }
+                val thumbnail = jsons.firstOrNull()?.let(::bestThumbnail).orEmpty()
                 val result = Arguments.createMap()
                 result.putString("title", title)
-                result.putInt("count", jsons.size)
+                result.putString("thumbnail", thumbnail)
 
                 if (isImage) {
                     result.putString("type", "image")
                     val entries = Arguments.createArray()
                     val parsed = ImageCandidateSelector.entryImages(jsons)
+                    if (parsed.isEmpty()) {
+                        throw IOException("No downloadable media found; this link may be expired or deleted")
+                    }
+                    result.putInt("count", parsed.size)
                     parsed.forEach { entry ->
                         val variants = Arguments.createArray()
                         entry.variants.forEach { candidate ->
                             val descriptor = Arguments.createMap()
+                            descriptor.putString("url", candidate.url)
                             descriptor.putInt("width", candidate.width)
                             descriptor.putInt("height", candidate.height)
                             descriptor.putString("ext", candidate.ext)
@@ -180,6 +198,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                         }
                         val payload = Arguments.createMap()
                         payload.putInt("index", entry.index)
+                        payload.putString("thumbnail", entry.variants.firstOrNull()?.url.orEmpty())
                         payload.putArray("variants", variants)
                         entries.pushMap(payload)
                     }
@@ -188,6 +207,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 } else {
                     result.putString("type", "video")
                     val entries = Arguments.createArray()
+                    var entryCount = 0
                     jsons.forEachIndexed { idx, json ->
                         val index = json.optInt("playlist_index").takeIf { it > 0 } ?: (idx + 1)
                         val slideTitle = json.optString("title").ifBlank { "Slide $index" }
@@ -195,8 +215,24 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                         payload.putInt("index", index)
                         payload.putString("title", slideTitle)
                         payload.putInt("duration", json.optInt("duration", 0))
+                        val videoId = json.optString("id")
+                        val rawUrl = json.optString("webpage_url").ifBlank { json.optString("url") }
+                        val canonicalUrl = when {
+                            rawUrl.startsWith("http://") || rawUrl.startsWith("https://") -> rawUrl
+                            videoId.isNotBlank() -> "https://www.youtube.com/watch?v=$videoId"
+                            else -> rawUrl
+                        }
+                        if (canonicalUrl.isBlank()) return@forEachIndexed
+                        payload.putString("id", videoId)
+                        payload.putString("url", canonicalUrl)
+                        payload.putString("thumbnail", bestThumbnail(json))
                         entries.pushMap(payload)
+                        entryCount++
                     }
+                    if (entryCount == 0) {
+                        throw IOException("No downloadable media found; this link may be expired or deleted")
+                    }
+                    result.putInt("count", entryCount)
                     result.putArray("entries", entries)
                 }
 
@@ -252,6 +288,8 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                     return@launch
                 }
 
+                scanMediaFiles(appDir)
+
                 val result = Arguments.createMap()
                 result.putInt("count", saved.size)
                 result.putString("folder", "$folder/YoinkIt")
@@ -306,6 +344,8 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         val dirType = when (folder) {
             "Music" -> Environment.DIRECTORY_MUSIC
             "Movies" -> Environment.DIRECTORY_MOVIES
+            "Pictures" -> Environment.DIRECTORY_PICTURES
+            "DCIM" -> Environment.DIRECTORY_DCIM
             else -> Environment.DIRECTORY_DOWNLOADS
         }
         val baseDir = Environment.getExternalStoragePublicDirectory(dirType)
@@ -317,7 +357,9 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
     private fun scanMediaFiles(dir: File) {
         val files = dir.listFiles()?.filter { it.isFile }?.map { it.absolutePath }?.toTypedArray()
         if (!files.isNullOrEmpty()) {
-            android.media.MediaScannerConnection.scanFile(reactApplicationContext, files, null, null)
+            android.media.MediaScannerConnection.scanFile(reactApplicationContext, files, null) { path, uri ->
+                // Media scanner indexed file for system gallery
+            }
         }
     }
 
@@ -326,6 +368,18 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
 
     @ReactMethod
     fun removeListeners(count: Int) {}
+
+    private fun bestThumbnail(json: JSONObject): String {
+        val direct = json.optString("thumbnail")
+        if (direct.isNotBlank()) return direct
+
+        val thumbnails = json.optJSONArray("thumbnails") ?: return ""
+        for (index in thumbnails.length() - 1 downTo 0) {
+            val url = thumbnails.optJSONObject(index)?.optString("url").orEmpty()
+            if (url.isNotBlank()) return url
+        }
+        return ""
+    }
 
     private fun sendProgressEvent(progress: Float, eta: Long = 0L) {
         reactApplicationContext

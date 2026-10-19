@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import {
+  Animated,
+  Easing,
   StyleSheet,
   Text,
   View,
   TextInput,
   TouchableOpacity,
+  Pressable,
   ActivityIndicator,
   StatusBar,
   Keyboard,
@@ -17,6 +20,22 @@ import {
   Vibration,
 } from 'react-native';
 import { File, Paths } from 'expo-file-system';
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CheckSquare,
+  Download,
+  Flame,
+  History,
+  ListPlus,
+  Play,
+  RefreshCw,
+  Search,
+  Settings,
+  Square,
+  Trash2,
+  X,
+} from 'lucide-react-native';
 
 const { YoutubeDlModule } = NativeModules;
 
@@ -59,14 +78,20 @@ const detectPlatform = (targetUrl) => {
   if (!targetUrl || typeof targetUrl !== 'string') return null;
   const lower = targetUrl.toLowerCase().trim();
   if (!lower) return null;
-  if (lower.includes('spotify.com')) return { name: 'SPOTIFY', tag: 'MUSIC / PLAYLIST' };
+  if (lower.includes('spotify.com')) return { name: 'SPOTIFY', tag: 'MUSIC / TRACK' };
   if (lower.includes('youtube.com') || lower.includes('youtu.be')) return { name: 'YOUTUBE', tag: 'VIDEO / AUDIO' };
-  if (lower.includes('instagram.com')) return { name: 'INSTAGRAM', tag: 'CAROUSEL / REEL' };
-  if (lower.includes('twitter.com') || lower.includes('x.com')) return { name: 'X / TWITTER', tag: 'POST / CLIP' };
-  if (lower.includes('tiktok.com')) return { name: 'TIKTOK', tag: 'SHORT VIDEO' };
+  if (lower.includes('instagram.com')) return { name: 'INSTAGRAM', tag: 'REEL / CAROUSEL' };
+  if (lower.includes('twitter.com') || lower.includes('x.com')) return { name: 'X / TWITTER', tag: 'CLIP / POST' };
+  if (lower.includes('tiktok.com') || lower.includes('tt.site')) return { name: 'TIKTOK', tag: 'SHORT VIDEO' };
   if (lower.includes('soundcloud.com')) return { name: 'SOUNDCLOUD', tag: 'AUDIO TRACK' };
-  if (lower.startsWith('http')) return { name: 'WEB STREAM', tag: 'DIRECT MEDIA' };
-  return { name: 'SPOTIFY SEARCH', tag: 'SONG QUERY' };
+  if (lower.includes('bandcamp.com')) return { name: 'BANDCAMP', tag: 'ALBUM / TRACK' };
+  if (lower.includes('reddit.com') || lower.includes('v.redd.it')) return { name: 'REDDIT', tag: 'COMMUNITY CLIP' };
+  if (lower.includes('twitch.tv')) return { name: 'TWITCH', tag: 'STREAM CLIP' };
+  if (lower.includes('vimeo.com')) return { name: 'VIMEO', tag: 'HD VIDEO' };
+  if (lower.includes('facebook.com') || lower.includes('fb.watch')) return { name: 'FACEBOOK', tag: 'VIDEO' };
+  if (lower.includes('pinterest.com') || lower.includes('pin.it')) return { name: 'PINTEREST', tag: 'PIN MEDIA' };
+  if (lower.startsWith('http')) return { name: 'DIRECT STREAM', tag: 'WEB MEDIA (+1000 SITES)' };
+  return { name: 'TRACK SEARCH', tag: 'MEDIA QUERY' };
 };
 
 const triggerHaptic = (style = 'light') => {
@@ -88,6 +113,7 @@ const defaultSettings = {
   spotifyClientId: process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID || '',
   spotifyClientSecret: '',
   cookiesText: '',
+  defaultFolder: 'Downloads',
 };
 
 const readLocalData = () => {
@@ -119,6 +145,206 @@ const readJsonResponse = async (response, label) => {
   }
   return data;
 };
+
+function PersonaButton({
+  title,
+  onPress,
+  variant = 'scarlet', // 'scarlet' | 'paper' | 'cyan' | 'navy'
+  disabled = false,
+  icon: IconComponent,
+  iconRight: IconRightComponent,
+  size = 'normal',
+  style,
+  textStyle,
+}) {
+  const [pressProgress] = useState(() => new Animated.Value(0));
+
+  const isScarlet = variant === 'scarlet';
+  const isPaper = variant === 'paper';
+  const isCyan = variant === 'cyan';
+
+  let bgColor = THEME.navy;
+  let textColor = THEME.white;
+
+  if (isScarlet) {
+    bgColor = disabled ? THEME.disabled : THEME.brickRed;
+    textColor = THEME.white;
+  } else if (isPaper) {
+    bgColor = THEME.paper;
+    textColor = THEME.ink;
+  } else if (isCyan) {
+    bgColor = THEME.steelBlue;
+    textColor = THEME.ink;
+  }
+
+  const animatePress = toValue => {
+    Animated.timing(pressProgress, {
+      toValue,
+      duration: toValue ? 70 : 160,
+      easing: toValue ? Easing.out(Easing.quad) : Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const animatedStyle = {
+    transform: [
+      { translateX: pressProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 4] }) },
+      { translateY: pressProgress.interpolate({ inputRange: [0, 1], outputRange: [0, 4] }) },
+    ],
+  };
+
+  return (
+    <View style={[styles.personaBtnWrap, style]}>
+      {/* Sombra dura offset estilo Persona (#001524) */}
+      <View
+        style={[
+          styles.personaBtnHardShadow,
+          size === 'small' && styles.personaBtnHardShadowSmall,
+          size === 'large' && styles.personaBtnHardShadowLarge,
+        ]}
+      />
+
+      <Animated.View style={animatedStyle}>
+        <Pressable
+          disabled={disabled}
+          onPressIn={() => animatePress(1)}
+          onPressOut={() => animatePress(0)}
+          onPress={onPress}
+          style={[
+            styles.personaBtnBody,
+            { backgroundColor: bgColor },
+            size === 'small' && styles.personaBtnBodySmall,
+            size === 'large' && styles.personaBtnBodyLarge,
+          ]}
+        >
+          <View style={styles.personaBtnContent}>
+            {IconComponent && (
+              <IconComponent
+                size={size === 'small' ? 12 : (size === 'large' ? 16 : 14)}
+                color={textColor}
+                style={{ marginRight: 6 }}
+              />
+            )}
+            <Text
+              style={[
+                styles.personaBtnText,
+                { color: textColor },
+                size === 'small' && styles.personaBtnTextSmall,
+                size === 'large' && styles.personaBtnTextLarge,
+                textStyle,
+              ]}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+            {IconRightComponent && (
+              <IconRightComponent
+                size={size === 'small' ? 12 : (size === 'large' ? 16 : 14)}
+                color={textColor}
+                style={{ marginLeft: 6 }}
+              />
+            )}
+          </View>
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
+}
+
+function PersonaTicket({
+  title,
+  tags = [],
+  variant = 'cyan', // 'cyan' | 'scarlet' | 'navy'
+  rotate = 0,
+  children,
+  style,
+  bodyStyle,
+}) {
+  const isScarlet = variant === 'scarlet';
+  const isCyan = variant === 'cyan';
+
+  const bgColor = isScarlet
+    ? THEME.brickRed
+    : isCyan
+    ? THEME.steelBlue
+    : THEME.navy;
+
+  const textColor = isScarlet ? THEME.white : (isCyan ? THEME.ink : THEME.white);
+  const tagBorderColor = isScarlet ? THEME.white : (isCyan ? THEME.ink : THEME.steelBlue);
+
+  return (
+    <View style={[styles.ticketContainer, rotate ? { transform: [{ rotate: `${rotate}deg` }] } : null, style]}>
+      <View style={styles.ticketShadow} />
+      <View style={[styles.ticketBody, { backgroundColor: bgColor }, bodyStyle]}>
+        {title ? (
+          <Text style={[styles.ticketTitle, { color: textColor }]} numberOfLines={2}>
+            {title}
+          </Text>
+        ) : null}
+        {tags && tags.length > 0 ? (
+          <View style={styles.ticketTagList}>
+            {tags.map((t, idx) => (
+              <View key={idx} style={[styles.ticketTag, { borderColor: tagBorderColor }]}>
+                <Text style={[styles.ticketTagText, { color: textColor }]}>
+                  {t}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {children}
+      </View>
+    </View>
+  );
+}
+
+function PersonaBackdrop() {
+  const [drift] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    const motion = Animated.loop(
+      Animated.sequence([
+        Animated.timing(drift, {
+          toValue: 1,
+          duration: 5200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(drift, {
+          toValue: 0,
+          duration: 5200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    motion.start();
+    return () => motion.stop();
+  }, [drift]);
+
+  return (
+    <View pointerEvents="none" style={styles.personaBackdrop}>
+      <View style={styles.backdropCyanShard} />
+      <Animated.View
+        style={[
+          styles.backdropRedSlash,
+          {
+            transform: [
+              { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [-18, 18] }) },
+              { rotate: '-14deg' },
+            ],
+          },
+        ]}
+      />
+      <View style={styles.backdropPaperSpike} />
+      <View style={styles.backdropLines}>
+        {[0, 1, 2, 3, 4, 5, 6].map(index => (
+          <View key={index} style={[styles.backdropLine, { left: index * 54 }]} />
+        ))}
+      </View>
+    </View>
+  );
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('home');
@@ -254,6 +480,9 @@ export default function App() {
         }
         setSettings(localData.settings);
         setHistory(localData.history);
+        if (localData.settings.defaultFolder) {
+          setFolder(localData.settings.defaultFolder);
+        }
         if (Platform.OS === 'android') {
           await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE);
         }
@@ -398,20 +627,177 @@ export default function App() {
     };
   };
 
-  const analyzeUrl = async (targetUrl) => {
+  const parseSpotifyPublicUrl = async (targetUrl) => {
+    let title = '';
+    let thumbnail = '';
+    let entries = [];
+
+    const match = targetUrl.match(/(track|album|playlist)\/([a-zA-Z0-9]+)/);
+    if (match) {
+      const type = match[1];
+      const id = match[2];
+      try {
+        const embedUrl = `https://open.spotify.com/embed/${type}/${id}`;
+        const res = await fetch(embedUrl);
+        if (res.ok) {
+          const html = await res.text();
+          const nextDataMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>([^<]+)<\/script>/);
+          if (nextDataMatch) {
+            const data = JSON.parse(nextDataMatch[1]);
+            const entity = data.props?.pageProps?.state?.data?.entity;
+            if (entity) {
+              thumbnail = entity.visualIdentity?.image?.[0]?.url || '';
+              if (type === 'track') {
+                const trackName = entity.title || entity.name || 'Unknown Track';
+                const artistName = entity.artists?.[0]?.name || entity.subtitle || '';
+                title = artistName ? `${trackName} - ${artistName}` : trackName;
+                const durSec = Math.round((entity.duration || 0) / 1000);
+                entries = [{
+                  index: 1,
+                  title,
+                  duration: durSec,
+                  _query: `ytsearch1:${title}`
+                }];
+              } else if (entity.trackList && entity.trackList.length > 0) {
+                title = entity.title || entity.name || `Spotify ${type.toUpperCase()}`;
+                entries = entity.trackList.map((t, idx) => {
+                  const tTitle = t.title || t.name;
+                  const tArtist = t.subtitle || (t.artists && t.artists[0]?.name) || '';
+                  const fullTrackName = tArtist ? `${tTitle} - ${tArtist}` : tTitle;
+                  return {
+                    index: idx + 1,
+                    title: fullTrackName,
+                    duration: Math.round((t.duration || 0) / 1000),
+                    _query: `ytsearch1:${fullTrackName}`
+                  };
+                });
+              }
+            }
+          }
+        }
+      } catch {
+        // Fallback to oembed
+      }
+    }
+
+    if (entries.length === 0) {
+      try {
+        const oembedRes = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(targetUrl)}`);
+        if (oembedRes.ok) {
+          const oembedData = await oembedRes.json();
+          title = oembedData.title || title;
+          thumbnail = oembedData.thumbnail_url || thumbnail;
+          if (title) {
+            entries = [{
+              index: 1,
+              title,
+              duration: 0,
+              _query: `ytsearch1:${title}`
+            }];
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    if (entries.length === 0) {
+      try {
+        const pageRes = await fetch(targetUrl);
+        const html = await pageRes.text();
+        const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+        if (titleMatch) {
+          let rawTitle = titleMatch[1];
+          rawTitle = rawTitle.replace(/ \| Spotify$/i, '').replace(/ - song and lyrics by /i, ' - ');
+          title = rawTitle.trim();
+          entries = [{
+            index: 1,
+            title,
+            duration: 0,
+            _query: `ytsearch1:${title}`
+          }];
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    if (entries.length === 0) {
+      const cleanSlug = targetUrl.split('?')[0].split('/').pop() || 'Track';
+      title = `Spotify Track ${cleanSlug}`;
+      entries = [{
+        index: 1,
+        title,
+        duration: 0,
+        _query: `ytsearch1:${title}`
+      }];
+    }
+
+    return {
+      type: 'video',
+      count: entries.length,
+      isSpotify: true,
+      isSearch: entries.length > 1,
+      title: title || 'Spotify Media',
+      thumbnail,
+      entries
+    };
+  };
+
+  const analyzeUrl = async (rawUrl) => {
     Keyboard.dismiss();
     setIsLoading(true);
     setStatus('> analyzing link...');
     triggerHaptic('light');
     
     try {
+      let targetUrl = rawUrl.trim();
+      if (!targetUrl.startsWith('http')) {
+        if (targetUrl.startsWith('://')) {
+          targetUrl = 'https' + targetUrl;
+        } else if ((targetUrl.includes('.') || targetUrl.includes('/')) && !targetUrl.includes(' ')) {
+          targetUrl = 'https://' + targetUrl;
+        }
+      }
+
       let result;
       if (!targetUrl.startsWith('http')) {
-        setStatus(`> searching spotify for: ${targetUrl}...`);
-        result = await searchSpotify(targetUrl);
+        setStatus(`> searching media: ${targetUrl}...`);
+        try {
+          if (settings.spotifyClientId && settings.spotifyClientSecret) {
+            result = await searchSpotify(targetUrl);
+          } else {
+            const raw = await YoutubeDlModule.analyzeLink(`ytsearch5:${targetUrl}`, cookieOptions());
+            result = {
+              ...raw,
+              title: `Search: ${targetUrl}`,
+              isSearch: true,
+              isSpotify: false,
+              audioSearch: true,
+            };
+          }
+        } catch {
+          const raw = await YoutubeDlModule.analyzeLink(`ytsearch3:${targetUrl}`, cookieOptions());
+          result = {
+            ...raw,
+            title: `Search: ${targetUrl}`,
+            isSearch: true,
+            isSpotify: false,
+            audioSearch: true,
+          };
+        }
       } else if (targetUrl.includes('spotify.com')) {
-        setStatus('> spotify detected. resolving via API...');
-        result = await parseSpotifyUrl(targetUrl);
+        setStatus('> spotify detected. resolving metadata...');
+        try {
+          if (settings.spotifyClientId && settings.spotifyClientSecret) {
+            result = await parseSpotifyUrl(targetUrl);
+          } else {
+            result = await parseSpotifyPublicUrl(targetUrl);
+          }
+        } catch {
+          setStatus('> resolving via public spotify metadata...');
+          result = await parseSpotifyPublicUrl(targetUrl);
+        }
       } else if ((targetUrl.includes('twitter.com') || targetUrl.includes('x.com')) && settings.xMode === 'proxy' && settings.proxyUrl) {
         setStatus('> restricted X/Twitter detected. resolving via proxy...');
         result = await resolveTwitterViaProxy(targetUrl);
@@ -423,15 +809,18 @@ export default function App() {
       if (result.type === 'image') {
         setFormat('image');
         setFolder('Pictures');
-      } else if (result.isSpotify) {
+      } else if (result.isSpotify || result.audioSearch) {
         setFormat('mp3');
-        setFolder('Music');
+        setFolder(settings.defaultFolder === 'Downloads' ? 'Music' : (settings.defaultFolder || 'Music'));
       } else {
         setFormat('mp4');
-        setFolder('Movies');
+        setFolder(settings.defaultFolder || 'Downloads');
       }
       setScan(result);
-      setPicked(result.isSearch ? [] : result.entries.map(e => e.index));
+      const defaultSelection = result.isSearch && !result.isSpotify
+        ? result.entries.slice(0, 1).map(entry => entry.index)
+        : result.entries.map(entry => entry.index);
+      setPicked(defaultSelection);
       setVariantOf({});
       triggerHaptic('success');
       
@@ -448,7 +837,10 @@ export default function App() {
     } catch (e) {
       resetScan();
       triggerHaptic('heavy');
-      setStatus(`> error: ${e.message}`);
+      const message = e instanceof Error && e.message
+        ? e.message
+        : 'The link could not be analyzed. Copy a new share link and try again.';
+      setStatus(`> error: ${message}`);
     } finally {
       setIsLoading(false);
     }
@@ -525,17 +917,19 @@ export default function App() {
       setQueue(prev => [...prev, newJob]);
       addedCount = picks.length;
       setStatus(`> queued ${picks.length} image(s).`);
-    } else if (scan.isSpotify) {
+    } else if (scan.isSpotify || scan.isSearch) {
+      const musicFolder = settings.defaultFolder === 'Downloads' ? 'Music' : (settings.defaultFolder || 'Music');
       const newJobs = picked.map(index => {
         const entry = scan.entries.find(e => e.index === index);
+        const resolvedUrl = entry?.url || entry?._query || `ytsearch1:${entry?.title}`;
         return {
           id: Date.now().toString() + index,
-          title: entry.title,
-          type: 'spotify',
-          url: entry._query,
-          options: { format, quality, folder, ...cookieOptions() },
+          title: entry?.title || 'Audio Track',
+          type: 'video',
+          url: resolvedUrl,
+          options: { format: 'mp3', quality, folder: musicFolder, ...cookieOptions() },
           sourceUrl: url,
-          thumbnail: scan.thumbnail || '',
+          thumbnail: entry?.thumbnail || scan.thumbnail || '',
           status: 'pending',
           progress: 0,
           eta: 0
@@ -596,21 +990,23 @@ export default function App() {
     <View style={styles.rowContainer}>
       <Text style={styles.rowLabel}>{title}</Text>
       <View style={styles.buttonGroup}>
-        {options.map(opt => (
-          <TouchableOpacity
-            key={opt.value}
-            style={[styles.optButton, selected === opt.value && styles.optButtonSelected]}
-            onPress={() => {
-              triggerHaptic('light');
-              onSelect(opt.value);
-            }}
-            disabled={isLoading}
-          >
-            <Text style={[styles.optText, selected === opt.value && styles.optTextSelected]}>
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {options.map(opt => {
+          const isSel = selected === opt.value;
+          return (
+            <PersonaButton
+              key={opt.value}
+              title={opt.label}
+              variant={isSel ? 'paper' : 'navy'}
+              size="small"
+              style={{ flex: 1 }}
+              onPress={() => {
+                triggerHaptic('light');
+                onSelect(opt.value);
+              }}
+              disabled={isLoading}
+            />
+          );
+        })}
       </View>
     </View>
   );
@@ -637,41 +1033,50 @@ export default function App() {
 
   return (
     <View style={styles.container}>
+      <PersonaBackdrop />
       <StatusBar barStyle="light-content" backgroundColor={THEME.ink} />
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
 
+      {/* Top Header & Tab Bar fixed outside ScrollView so header never jumps */}
+      <View style={{ paddingHorizontal: 22, paddingTop: 16, zIndex: 10 }}>
         {/* Top Header */}
         <View style={styles.header}>
           <View style={styles.headerTitleRow}>
-            <Text style={styles.title}>YOINK</Text>
+            <Text style={styles.title}>YOINK IT</Text>
             <View style={styles.headerBadge}>
-              <Text style={styles.headerBadgeText}>DOSSIER v1.2</Text>
+              <Text style={styles.headerBadgeText}>DOSSIER v4</Text>
             </View>
           </View>
           <Text style={styles.subtitle}>ASPEN // MEDIA EXTRACTION SYSTEM</Text>
         </View>
 
-        {/* Navigation Tab Bar */}
-        <View style={styles.tabBar}>
+        {/* Navigation Tab Bar - Persona Cut Buttons (Image 2 style) */}
+        <View style={styles.personaTabBar}>
           {[
-            { label: 'YOINK', value: 'home' },
-            { label: `HISTORY (${history.length})`, value: 'history' },
-            { label: 'SETTINGS', value: 'settings' },
-          ].map(tab => (
-            <TouchableOpacity
-              key={tab.value}
-              style={[styles.tabButton, activeTab === tab.value && styles.tabButtonActive]}
-              onPress={() => {
-                triggerHaptic('light');
-                setActiveTab(tab.value);
-              }}
-            >
-              <Text style={[styles.tabText, activeTab === tab.value && styles.tabTextActive]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+            { label: 'YOINK', value: 'home', Icon: Flame, rightIcon: ArrowDownRight },
+            { label: `HISTORY (${history.length})`, value: 'history', Icon: History, rightIcon: null },
+            { label: 'SETTINGS', value: 'settings', Icon: Settings, rightIcon: null },
+          ].map(tab => {
+            const isTabActive = activeTab === tab.value;
+            return (
+              <PersonaButton
+                key={tab.value}
+                title={tab.label}
+                variant={isTabActive ? 'scarlet' : 'paper'}
+                icon={tab.Icon}
+                iconRight={isTabActive ? tab.rightIcon : null}
+                size="small"
+                style={{ flex: 1, marginHorizontal: 3 }}
+                onPress={() => {
+                  triggerHaptic('light');
+                  setActiveTab(tab.value);
+                }}
+              />
+            );
+          })}
         </View>
+      </View>
+
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
 
         {/* Tab 1: YOINK (Home) */}
         {activeTab === 'home' && <>
@@ -708,36 +1113,26 @@ export default function App() {
                   }}
                   disabled={isLoading}
                 >
-                  <Text style={styles.clearInputText}>[×]</Text>
+                  <X size={16} color={THEME.steelBlue} />
                 </TouchableOpacity>
               )}
             </View>
 
             {/* Action Bar under input */}
             <View style={styles.inputActionRow}>
-              <TouchableOpacity
-                style={[
-                  styles.scanActionBtn,
-                  (!url.trim() || isLoading) && styles.scanActionBtnDisabled
-                ]}
+              <PersonaButton
+                title={isLoading ? 'SCANNING...' : (url.startsWith('http') ? 'SCAN LINK' : 'SEARCH MEDIA')}
+                variant="scarlet"
+                icon={Search}
+                iconRight={ArrowDownRight}
+                size="small"
+                disabled={!url.trim() || isLoading}
                 onPress={() => {
                   if (url.trim().length > 0 && !isLoading) {
                     analyzeUrl(url.trim());
                   }
                 }}
-                disabled={!url.trim() || isLoading}
-              >
-                {isLoading ? (
-                  <View style={styles.actionBtnContent}>
-                    <ActivityIndicator size="small" color={THEME.white} />
-                    <Text style={styles.scanActionBtnText}> SCANNING...</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.scanActionBtnText}>
-                    {url.startsWith('http') ? '[SCAN LINK]' : '[SEARCH SPOTIFY]'}
-                  </Text>
-                )}
-              </TouchableOpacity>
+              />
 
               {detected && (
                 <View style={styles.platformBadge}>
@@ -747,32 +1142,40 @@ export default function App() {
             </View>
           </View>
 
-          {/* Quick Platform Indicators when empty */}
-          {!url && !scan && (
-            <View style={styles.supportedRow}>
-              <Text style={styles.supportedLabel}>SOURCES:</Text>
-              {['YOUTUBE', 'INSTAGRAM', 'SPOTIFY', 'X', 'TIKTOK'].map(p => (
-                <View key={p} style={styles.supportedTag}>
-                  <Text style={styles.supportedTagText}>{p}</Text>
-                </View>
-              ))}
-            </View>
+          {/* System Log Card in colored Ticket when empty - Image 1 Style */}
+          {!scan && (
+            <PersonaTicket
+              variant="navy"
+              rotate={0.4}
+              style={{ marginTop: 4, marginBottom: 12 }}
+              bodyStyle={{ padding: 10, paddingVertical: 8 }}
+            >
+              <View style={styles.ticketLogHeaderRow}>
+                <View style={styles.ticketLogAccent} />
+                <Text style={styles.ticketLogHeader}>
+                  {`SYSTEM // ${status.includes('error') ? 'ERROR' : isLoading ? 'SCANNING' : activeJobId ? 'DOWNLOADING' : isReady ? 'READY' : 'INIT'}`}
+                </Text>
+                <Text style={styles.ticketLogCursor}>{cursor ? '█' : ' '}</Text>
+              </View>
+              <View style={styles.ticketLogBody}>
+                {logHistory.slice(0, 2).map((item) => (
+                  <View key={item.id} style={styles.ticketLogLineRow}>
+                    <Text style={styles.ticketLogTime}>{item.time} &gt;</Text>
+                    <Text style={styles.ticketLogMsg} numberOfLines={2}>{item.text}</Text>
+                  </View>
+                ))}
+              </View>
+            </PersonaTicket>
           )}
 
-          {/* Media Scan Preview Card */}
+          {/* Media Scan Preview Card - Image 1 Style (Scarlet Ticket) */}
           {scan && (
-            <View style={styles.scanMetaCard}>
-              <View style={styles.scanCardHeader}>
-                <View style={styles.scanCardBadge}>
-                  <Text style={styles.scanCardBadgeText}>
-                    {scan.isSpotify ? 'SPOTIFY' : isImage ? 'IMAGE CAROUSEL' : scan.count > 1 ? 'PLAYLIST' : 'MEDIA'}
-                  </Text>
-                </View>
-                <Text style={styles.scanCardCount}>
-                  {scan.count} {scan.count === 1 ? 'ITEM' : 'ITEMS'}
-                </Text>
-              </View>
-
+            <PersonaTicket
+              title={scan.title}
+              variant="scarlet"
+              rotate={-0.4}
+              style={{ marginBottom: 18 }}
+            >
               <View style={styles.scanCardBody}>
                 {scan.thumbnail ? (
                   <View style={styles.thumbnailFrame}>
@@ -784,8 +1187,19 @@ export default function App() {
                   </View>
                 )}
                 <View style={styles.scanCardDetails}>
-                  <Text style={styles.scanTitle} numberOfLines={2}>{scan.title}</Text>
-                  <Text style={styles.scanSubtitle}>
+                  <View style={styles.ticketTagList}>
+                    <View style={[styles.ticketTag, { borderColor: THEME.white }]}>
+                      <Text style={[styles.ticketTagText, { color: THEME.white }]}>
+                        {scan.isSpotify ? 'SPOTIFY' : scan.isSearch ? 'TRACK SEARCH' : isImage ? 'CAROUSEL' : scan.count > 1 ? 'PLAYLIST' : 'MEDIA'}
+                      </Text>
+                    </View>
+                    <View style={[styles.ticketTag, { borderColor: THEME.white }]}>
+                      <Text style={[styles.ticketTagText, { color: THEME.white }]}>
+                        {`${scan.count} ${scan.count === 1 ? 'ITEM' : 'ITEMS'}`}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.scanSubtitle, { color: THEME.paper, marginTop: 4 }]}>
                     {isImage
                       ? `${scan.count} image(s) found`
                       : scan.isSpotify
@@ -804,30 +1218,99 @@ export default function App() {
                     SELECTED: {picked.length}/{scan.count}
                   </Text>
                   <View style={styles.batchBtnGroup}>
-                    <TouchableOpacity
-                      style={styles.batchBtn}
+                    <PersonaButton
+                      title="ALL"
+                      variant="paper"
+                      size="small"
+                      icon={CheckSquare}
                       onPress={selectAllEntries}
                       disabled={isLoading}
-                    >
-                      <Text style={styles.batchBtnText}>[ALL]</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.batchBtn}
+                    />
+                    <PersonaButton
+                      title="NONE"
+                      variant="paper"
+                      size="small"
+                      icon={Square}
                       onPress={deselectAllEntries}
                       disabled={isLoading}
-                    >
-                      <Text style={styles.batchBtnText}>[NONE]</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.batchBtn}
+                    />
+                    <PersonaButton
+                      title="INVERT"
+                      variant="paper"
+                      size="small"
+                      icon={RefreshCw}
                       onPress={invertSelection}
                       disabled={isLoading}
-                    >
-                      <Text style={styles.batchBtnText}>[INVERT]</Text>
-                    </TouchableOpacity>
+                    />
                   </View>
                 </View>
               )}
+            </PersonaTicket>
+          )}
+
+          {/* Multi-Item / Playlist / Carousel Picker Box (ahora arriba de Format y Quality) */}
+          {mediaType && scan && (mediaType === 'image' || scan.count > 1) && (
+            <View style={styles.pickerBox}>
+              <View style={styles.pickerBoxHeader}>
+                <Text style={styles.rowLabel}>
+                  {isImage ? 'IMAGES' : (scan.isSpotify ? 'TRACKS' : 'ITEMS')}
+                </Text>
+                <Text style={styles.autoNote}>
+                  {`> ${picked.length}/${scan.count} selected`}
+                </Text>
+              </View>
+              
+              {scan.entries.map(entry => {
+                const chosen = picked.includes(entry.index);
+                const variant = variantOf[entry.index] || 0;
+                const current = isImage ? (entry.variants[variant] || entry.variants[0]) : null;
+                const durationText = formatDuration(entry.duration);
+                
+                return (
+                  <View key={entry.index} style={[styles.entryBlock, chosen && styles.entryBlockChosen]}>
+                    <TouchableOpacity
+                      style={styles.entryRow}
+                      onPress={() => toggleEntry(entry.index)}
+                      disabled={isLoading}
+                    >
+                      {!isImage && entry.thumbnail ? (
+                        <Image source={{ uri: entry.thumbnail }} style={styles.entryThumbnail} resizeMode="cover" />
+                      ) : isImage && (current?.url || entry.thumbnail) ? (
+                        <Image source={{ uri: current?.url || entry.thumbnail }} style={styles.entryThumbnail} resizeMode="cover" />
+                      ) : null}
+                      <Text style={[styles.entryFlag, chosen && styles.entryFlagOn]}>
+                        {chosen ? '[x]' : '[ ]'}
+                      </Text>
+                      <Text style={styles.entryIndex}>
+                        {isImage
+                          ? `[${entry.index}]`
+                          : ((scan.isSpotify || scan.isSearch) ? `TRACK ${String(entry.index).padStart(2, '0')}` : `ITEM ${String(entry.index).padStart(2, '0')}`)}
+                      </Text>
+                      <Text style={[styles.entryMeta, !chosen && styles.entryMetaOff]} numberOfLines={1}>
+                        {isImage 
+                          ? `${dims(current)} ${String(current.ext).toUpperCase()}`
+                          : entry.title + (durationText ? ` // ${durationText}` : '')}
+                      </Text>
+                    </TouchableOpacity>
+                    {isImage && entry.variants.length > 1 && (
+                      <View style={styles.variantRow}>
+                        {entry.variants.map((option, position) => (
+                          <TouchableOpacity
+                            key={position}
+                            style={[styles.variantChip, position === variant && styles.variantChipOn]}
+                            onPress={() => chooseVariant(entry.index, position)}
+                            disabled={isLoading || !chosen}
+                          >
+                            <Text style={[styles.variantText, position === variant && styles.variantTextOn]}>
+                              {dims(option)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
             </View>
           )}
 
@@ -858,126 +1341,29 @@ export default function App() {
             />
           )}
 
-          {/* Multi-Item / Playlist / Carousel Picker Box */}
-          {mediaType && scan && (mediaType === 'image' || scan.count > 1) && (
-            <View style={styles.pickerBox}>
-              <View style={styles.pickerBoxHeader}>
-                <Text style={styles.rowLabel}>
-                  {isImage ? 'IMAGES' : (scan.isSpotify ? 'TRACKS' : 'ITEMS')}
-                </Text>
-                <Text style={styles.autoNote}>
-                  {`> ${picked.length}/${scan.count} selected`}
-                </Text>
-              </View>
-              
-              {scan.entries.map(entry => {
-                const chosen = picked.includes(entry.index);
-                const variant = variantOf[entry.index] || 0;
-                const current = isImage ? (entry.variants[variant] || entry.variants[0]) : null;
-                const durationText = formatDuration(entry.duration);
-                
-                return (
-                  <View key={entry.index} style={[styles.entryBlock, chosen && styles.entryBlockChosen]}>
-                    <TouchableOpacity
-                      style={styles.entryRow}
-                      onPress={() => toggleEntry(entry.index)}
-                      disabled={isLoading}
-                    >
-                      <Text style={[styles.entryFlag, chosen && styles.entryFlagOn]}>
-                        {chosen ? '[x]' : '[ ]'}
-                      </Text>
-                      <Text style={styles.entryIndex}>
-                        {isImage
-                          ? `[${entry.index}]`
-                          : (scan.isSpotify ? `TRACK ${String(entry.index).padStart(2, '0')}` : `ITEM ${String(entry.index).padStart(2, '0')}`)}
-                      </Text>
-                      <Text style={[styles.entryMeta, !chosen && styles.entryMetaOff]} numberOfLines={1}>
-                        {isImage 
-                          ? `${dims(current)} ${String(current.ext).toUpperCase()}`
-                          : entry.title + (durationText ? ` // ${durationText}` : '')}
-                      </Text>
-                    </TouchableOpacity>
-                    {isImage && entry.variants.length > 1 && (
-                      <View style={styles.variantRow}>
-                        {entry.variants.map((option, position) => (
-                          <TouchableOpacity
-                            key={position}
-                            style={[styles.variantChip, position === variant && styles.variantChipOn]}
-                            onPress={() => chooseVariant(entry.index, position)}
-                            disabled={isLoading || !chosen}
-                          >
-                            <Text style={[styles.variantText, position === variant && styles.variantTextOn]}>
-                              {dims(option)}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          )}
-
-          {/* Output Destination Folder */}
-          {mediaType && (
-            <SelectionRow
-              title="OUTPUT"
-              selected={folder}
-              onSelect={setFolder}
-              options={[
-                { label: 'PICTURES', value: 'Pictures' },
-                { label: 'MOVIES', value: 'Movies' },
-                { label: 'MUSIC', value: 'Music' },
-                { label: 'DOWNLOADS', value: 'Downloads' }
-              ]}
-            />
-          )}
-
-          {/* Primary Action Buttons */}
+          {/* Primary Action Buttons - Image 2 Style */}
           {mediaType && (
             <View style={styles.actionButtonGroup}>
-              <TouchableOpacity
-                style={[styles.buttonPrimary, isLoading && styles.buttonDisabled]}
+              <PersonaButton
+                title={scan.count > 1 ? `YOINK NOW (${picked.length})` : 'YOINK NOW'}
+                variant="scarlet"
+                size="large"
+                icon={Download}
+                iconRight={ArrowDownRight}
                 onPress={() => handleSave(true)}
                 disabled={isLoading}
-              >
-                {isLoading ? (
-                  <ActivityIndicator color={THEME.white} size="small" />
-                ) : (
-                  <Text style={styles.buttonPrimaryText}>
-                    {scan.count > 1 ? `[YOINK NOW] (${picked.length})` : '[YOINK NOW]'}
-                  </Text>
-                )}
-              </TouchableOpacity>
+              />
 
-              <TouchableOpacity
-                style={[styles.buttonSecondary, isLoading && styles.buttonDisabled]}
+              <PersonaButton
+                title={scan.count > 1 ? `ADD TO QUEUE (${picked.length})` : 'ADD TO QUEUE'}
+                variant="paper"
+                size="large"
+                icon={ListPlus}
                 onPress={() => handleSave(false)}
                 disabled={isLoading}
-              >
-                <Text style={styles.buttonSecondaryText}>
-                  {scan.count > 1 ? `+ ADD TO QUEUE (${picked.length})` : '+ ADD TO QUEUE'}
-                </Text>
-              </TouchableOpacity>
+              />
             </View>
           )}
-
-          {/* Terminal Console Log Box */}
-          <View style={styles.consoleBox}>
-            <View style={styles.consoleHeader}>
-              <Text style={styles.consoleTitle}>{"// SYSTEM_LOG [" + (status ? 'ACTIVE' : 'READY') + "]"}</Text>
-              <Text style={styles.consoleCursor}>{cursor ? '█' : ' '}</Text>
-            </View>
-            <View style={styles.consoleBody}>
-              {logHistory.map((item) => (
-                <View key={item.id} style={styles.logLineRow}>
-                  <Text style={styles.logTime}>{item.time} &gt;</Text>
-                  <Text style={styles.logMsg} numberOfLines={2}>{item.text}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
 
           {/* Interactive Queue Section */}
           {queue.length > 0 && (
@@ -992,23 +1378,27 @@ export default function App() {
                     setQueue(q => q.filter(j => j.status !== 'done' && j.status !== 'error'));
                   }}
                 >
-                  <Text style={styles.clearText}>[CLEAR DONE]</Text>
+                  <View style={styles.inlineIconRow}>
+                    <Trash2 size={12} color={THEME.steelBlue} />
+                    <Text style={styles.clearText}> CLEAR DONE</Text>
+                  </View>
                 </TouchableOpacity>
               </View>
 
-              {/* Prominent Yoink All execution button */}
+              {/* Prominent Yoink All execution button - Image 2 Style */}
               {pendingQueueCount > 0 && !isQueueRunning && (
-                <TouchableOpacity
-                  style={styles.yoinkAllBar}
+                <PersonaButton
+                  title={`START EXTRACTION (${pendingQueueCount} READY)`}
+                  variant="scarlet"
+                  size="normal"
+                  icon={Play}
+                  iconRight={ArrowDownRight}
                   onPress={() => {
                     triggerHaptic('heavy');
                     setIsQueueRunning(true);
                   }}
-                >
-                  <Text style={styles.yoinkAllBarText}>
-                    START EXTRACTION ({pendingQueueCount} READY)
-                  </Text>
-                </TouchableOpacity>
+                  style={{ marginBottom: 12 }}
+                />
               )}
 
               {isQueueRunning && (
@@ -1040,7 +1430,7 @@ export default function App() {
                           isDone && styles.jobStatusTextDone,
                           isFail && styles.jobStatusTextFail,
                         ]}>
-                          {isWait ? '[WAIT]' : isDown ? '[DOWN]' : isDone ? '[DONE]' : '[FAIL]'}
+                          {isWait ? '[WAIT]' : isDown ? '[YOINKING IT]' : isDone ? '[YOINK!]' : '[FAIL]'}
                         </Text>
                       </View>
 
@@ -1055,7 +1445,7 @@ export default function App() {
                             onPress={() => retryQueueJob(job.id)}
                             style={styles.jobActionBtn}
                           >
-                            <Text style={styles.jobRetryText}>[RETRY]</Text>
+                            <RefreshCw size={12} color={THEME.paper} />
                           </TouchableOpacity>
                         )}
                         {!isDown && (
@@ -1063,7 +1453,7 @@ export default function App() {
                             onPress={() => removeQueueJob(job.id)}
                             style={styles.jobActionBtn}
                           >
-                            <Text style={styles.jobRemoveText}>[×]</Text>
+                            <X size={14} color={THEME.steelBlue} />
                           </TouchableOpacity>
                         )}
                       </View>
@@ -1093,10 +1483,10 @@ export default function App() {
             </View>
           )}
 
-          {/* Footer Disclaimer */}
+          {/* Footer GitHub Link */}
           <View style={styles.disclaimerBox}>
             <Text style={styles.disclaimerText}>
-              {"// DISCLAIMER: This application is heavily inspired by, based on, and acts as a mobile plagiarism of the 'yoinks' CLI from GitHub (github.com/pablostanley/yoinks). All credit for the original concept goes to its creator."}
+              {"// GITHUB.COM/AspenQlio // YOINK-IT"}
             </Text>
           </View>
         </>}
@@ -1108,7 +1498,10 @@ export default function App() {
               <Text style={styles.panelTitle}>YOINK HISTORY ({history.length})</Text>
               {history.length > 0 && (
                 <TouchableOpacity onPress={clearHistory}>
-                  <Text style={styles.clearText}>[CLEAR ALL]</Text>
+                  <View style={styles.inlineIconRow}>
+                    <Trash2 size={12} color={THEME.steelBlue} />
+                    <Text style={styles.clearText}> CLEAR ALL</Text>
+                  </View>
                 </TouchableOpacity>
               )}
             </View>
@@ -1136,7 +1529,11 @@ export default function App() {
                     style={styles.reYoinkBtn}
                     onPress={() => reYoink(item)}
                   >
-                    <Text style={styles.reYoinkBtnText}>[RE-YOINK]</Text>
+                    <View style={styles.inlineIconRow}>
+                      <RefreshCw size={11} color={THEME.paper} />
+                      <Text style={styles.reYoinkBtnText}> RE-YOINK </Text>
+                      <ArrowUpRight size={11} color={THEME.paper} />
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1153,7 +1550,13 @@ export default function App() {
 
             {/* Service Status Overview */}
             <View style={styles.statusOverviewBox}>
-              <Text style={styles.statusOverviewTitle}>INTEGRATIONS STATUS:</Text>
+              <Text style={styles.statusOverviewTitle}>INTEGRATIONS & CONFIG STATUS:</Text>
+              <View style={styles.statusOverviewRow}>
+                <Text style={styles.statusOverviewLabel}>DEFAULT FOLDER:</Text>
+                <Text style={[styles.statusOverviewVal, styles.statusValOk]}>
+                  {`[${(settings.defaultFolder || folder).toUpperCase()}]`}
+                </Text>
+              </View>
               <View style={styles.statusOverviewRow}>
                 <Text style={styles.statusOverviewLabel}>X/TWITTER PROXY:</Text>
                 <Text style={[styles.statusOverviewVal, settings.proxyUrl ? styles.statusValOk : styles.statusValOff]}>
@@ -1163,7 +1566,7 @@ export default function App() {
               <View style={styles.statusOverviewRow}>
                 <Text style={styles.statusOverviewLabel}>SPOTIFY API:</Text>
                 <Text style={[styles.statusOverviewVal, settings.spotifyClientId ? styles.statusValOk : styles.statusValOff]}>
-                  {settings.spotifyClientId ? '[CONFIGURED]' : '[NOT SET]'}
+                  {settings.spotifyClientId ? '[CONFIGURED]' : '[PUBLIC FALLBACK ACTIVE]'}
                 </Text>
               </View>
               <View style={styles.statusOverviewRow}>
@@ -1174,7 +1577,29 @@ export default function App() {
               </View>
             </View>
 
-            <Text style={styles.sectionHeader}>X / TWITTER AUTH</Text>
+            {/* Storage Destination */}
+            <Text style={styles.sectionHeader}>STORAGE DESTINATION</Text>
+            <Text style={styles.helpText}>
+              Carpeta por defecto donde se guardarán los archivos descargados en el almacenamiento de tu teléfono.
+            </Text>
+            <SelectionRow
+              title="DEFAULT FOLDER"
+              selected={settings.defaultFolder || folder}
+              onSelect={value => {
+                updateSetting('defaultFolder', value);
+                setFolder(value);
+              }}
+              options={[
+                { label: 'DOWNLOADS', value: 'Downloads' },
+                { label: 'MUSIC', value: 'Music' },
+                { label: 'PICTURES', value: 'Pictures' },
+              ]}
+            />
+
+            <Text style={styles.sectionHeader}>X / TWITTER AUTHENTICATION</Text>
+            <Text style={styles.helpText}>
+              X bloquea descargas anónimas en contenido sensible o restringido. El proxy Cloudflare Worker o las cookies de sesión evitan este bloqueo.
+            </Text>
             <SelectionRow
               title="EXTRACTION SOURCE"
               selected={settings.xMode}
@@ -1194,7 +1619,7 @@ export default function App() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 placeholder="https://worker.example.workers.dev"
-                placeholderTextColor="#84A9CB"
+                placeholderTextColor={THEME.steelBlueDeep}
               />
               <Text style={styles.rowLabel}>PROXY API KEY</Text>
               <TextInput
@@ -1205,7 +1630,7 @@ export default function App() {
                 autoCorrect={false}
                 secureTextEntry
                 placeholder="x-api-key"
-                placeholderTextColor="#84A9CB"
+                placeholderTextColor={THEME.steelBlueDeep}
               />
             </> : <>
               <Text style={styles.rowLabel}>NETSCAPE COOKIES.TXT</Text>
@@ -1218,12 +1643,17 @@ export default function App() {
                 multiline
                 textAlignVertical="top"
                 placeholder="# Netscape HTTP Cookie File"
-                placeholderTextColor="#84A9CB"
+                placeholderTextColor={THEME.steelBlueDeep}
               />
-              <Text style={styles.helpText}>{"Paste the complete cookies.txt content. Stored in private app sandbox."}</Text>
+              <Text style={styles.helpText}>
+                Pega el texto de cookies en formato Netscape. Permite que yt-dlp descargue como tu usuario conectado sin necesidad de proxy.
+              </Text>
             </>}
 
-            <Text style={styles.sectionHeader}>SPOTIFY CREDENTIALS</Text>
+            <Text style={styles.sectionHeader}>SPOTIFY CREDENTIALS (OPCIONAL)</Text>
+            <Text style={styles.helpText}>
+              Opcional. Permite explorar álbumes o playlists extensas. Para canciones individuales, YoinkIt resuelve los metadatos públicos de Spotify automáticamente sin necesitar llaves API.
+            </Text>
             <Text style={styles.rowLabel}>CLIENT ID</Text>
             <TextInput
               style={styles.settingsInput}
@@ -1232,7 +1662,7 @@ export default function App() {
               autoCapitalize="none"
               autoCorrect={false}
               placeholder="Spotify client ID"
-              placeholderTextColor="#84A9CB"
+              placeholderTextColor={THEME.steelBlueDeep}
             />
             <Text style={styles.rowLabel}>CLIENT SECRET</Text>
             <TextInput
@@ -1246,9 +1676,14 @@ export default function App() {
               placeholderTextColor={THEME.steelBlueDeep}
             />
 
-            <TouchableOpacity style={styles.buttonPrimary} onPress={saveSettings}>
-              <Text style={styles.buttonPrimaryText}>SAVE CONFIGURATION</Text>
-            </TouchableOpacity>
+            <PersonaButton
+              title="SAVE CONFIGURATION"
+              variant="scarlet"
+              size="large"
+              iconRight={ArrowDownRight}
+              onPress={saveSettings}
+              style={{ marginTop: 12 }}
+            />
           </View>
         )}
 
@@ -1259,7 +1694,53 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: THEME.ink },
-  scroll: { flexGrow: 1, padding: 22, justifyContent: 'center' },
+  scroll: { flexGrow: 1, padding: 22, justifyContent: 'flex-start', zIndex: 2 },
+  personaBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    overflow: 'hidden',
+    zIndex: 0,
+  },
+  backdropCyanShard: {
+    position: 'absolute',
+    width: 260,
+    height: 180,
+    right: -105,
+    top: 70,
+    backgroundColor: THEME.steelBlue,
+    opacity: 0.16,
+    transform: [{ rotate: '22deg' }, { skewX: '-16deg' }],
+  },
+  backdropRedSlash: {
+    position: 'absolute',
+    width: 108,
+    height: '135%',
+    left: '43%',
+    top: -90,
+    backgroundColor: THEME.brickRed,
+    opacity: 0.2,
+  },
+  backdropPaperSpike: {
+    position: 'absolute',
+    width: 220,
+    height: 70,
+    left: -90,
+    bottom: 120,
+    backgroundColor: THEME.paper,
+    opacity: 0.08,
+    transform: [{ rotate: '-23deg' }, { skewX: '18deg' }],
+  },
+  backdropLines: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.09,
+  },
+  backdropLine: {
+    position: 'absolute',
+    top: -120,
+    width: 2,
+    height: '145%',
+    backgroundColor: THEME.steelBlue,
+    transform: [{ rotate: '28deg' }],
+  },
   header: { marginBottom: 20 },
   headerTitleRow: { flexDirection: 'row', alignItems: 'center' },
   title: { fontSize: 44, fontWeight: '900', color: THEME.white, letterSpacing: -1.5 },
@@ -1274,6 +1755,185 @@ const styles = StyleSheet.create({
   headerBadgeText: { color: THEME.white, fontFamily: 'monospace', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
   subtitle: { fontSize: 12, color: THEME.steelBlue, marginTop: 4, fontFamily: 'monospace', letterSpacing: 1.5, fontWeight: '700' },
   
+  // Persona Button Styles (Image 2)
+  personaTabBar: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  personaBtnWrap: {
+    position: 'relative',
+    marginVertical: 4,
+    marginRight: 5,
+    marginBottom: 5,
+  },
+  personaBtnHardShadow: {
+    position: 'absolute',
+    top: 5,
+    left: 5,
+    right: -5,
+    bottom: -5,
+    backgroundColor: '#001524',
+    borderWidth: 1.5,
+    borderColor: '#000000',
+  },
+  personaBtnHardShadowSmall: {
+    top: 4,
+    left: 4,
+    right: -4,
+    bottom: -4,
+  },
+  personaBtnHardShadowLarge: {
+    top: 6,
+    left: 6,
+    right: -6,
+    bottom: -6,
+  },
+  personaBtnBody: {
+    borderWidth: 2.5,
+    borderColor: '#001524',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  personaBtnBodySmall: {
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    minHeight: 34,
+  },
+  personaBtnBodyLarge: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    minHeight: 50,
+  },
+  personaBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personaBtnText: {
+    fontFamily: 'monospace',
+    fontWeight: '900',
+    fontSize: 13,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    flexShrink: 1,
+  },
+  personaBtnTextSmall: {
+    fontSize: 11,
+    letterSpacing: 0.8,
+  },
+  personaBtnTextLarge: {
+    fontSize: 15,
+    letterSpacing: 1.5,
+  },
+
+  // Persona Skill Ticket Styles (Image 1)
+  ticketContainer: {
+    position: 'relative',
+    marginVertical: 8,
+  },
+  ticketShadow: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    right: -6,
+    bottom: -6,
+    backgroundColor: '#001524',
+  },
+  ticketBody: {
+    borderWidth: 2,
+    borderColor: '#001524',
+    padding: 16,
+  },
+  ticketArea: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginBottom: 4,
+    fontFamily: 'monospace',
+    textTransform: 'uppercase',
+  },
+  ticketTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    marginBottom: 12,
+    fontFamily: 'monospace',
+    textTransform: 'uppercase',
+    lineHeight: 24,
+  },
+  ticketTagList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  ticketTag: {
+    borderWidth: 2,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: 'transparent',
+    marginBottom: 4,
+  },
+  ticketTagText: {
+    fontSize: 11,
+    fontWeight: '800',
+    fontFamily: 'monospace',
+  },
+  ticketLogBody: {
+    marginTop: 4,
+  },
+  ticketLogHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 18,
+    marginBottom: 4,
+  },
+  ticketLogAccent: {
+    width: 3,
+    height: 14,
+    marginRight: 6,
+    backgroundColor: THEME.brickRed,
+    transform: [{ skewY: '-14deg' }],
+  },
+  ticketLogHeader: {
+    flex: 1,
+    color: THEME.paper,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+    fontFamily: 'monospace',
+  },
+  ticketLogCursor: {
+    color: THEME.brickRed,
+    fontSize: 11,
+    fontFamily: 'monospace',
+  },
+  ticketLogLineRow: {
+    flexDirection: 'row',
+    marginBottom: 2,
+    alignItems: 'center',
+  },
+  ticketLogTime: {
+    fontFamily: 'monospace',
+    color: THEME.steelBlue,
+    fontWeight: '800',
+    fontSize: 8.5,
+    marginRight: 5,
+  },
+  ticketLogMsg: {
+    fontFamily: 'monospace',
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 9.5,
+    flex: 1,
+  },
+
   // Tab Bar
   tabBar: {
     flexDirection: 'row',
@@ -1284,6 +1944,8 @@ const styles = StyleSheet.create({
   },
   tabButton: { flex: 1, paddingVertical: 12, alignItems: 'center', backgroundColor: THEME.navy },
   tabButtonActive: { backgroundColor: THEME.brickRed, borderBottomWidth: 3, borderBottomColor: THEME.paper },
+  tabContentRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  inlineIconRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   tabText: { color: THEME.steelBlue, fontSize: 11, fontFamily: 'monospace', fontWeight: 'bold', letterSpacing: 1 },
   tabTextActive: { color: THEME.white, fontWeight: '900' },
 
@@ -1402,6 +2064,14 @@ const styles = StyleSheet.create({
   },
   entryBlockChosen: { borderColor: THEME.brickRed, backgroundColor: '#00263d' },
   entryRow: { flexDirection: 'row', alignItems: 'center' },
+  entryThumbnail: {
+    width: 42,
+    height: 42,
+    marginRight: 8,
+    borderWidth: 2,
+    borderColor: THEME.steelBlue,
+    transform: [{ rotate: '-1.5deg' }],
+  },
   entryFlag: { color: THEME.steelBlueDeep, fontSize: 14, fontFamily: 'monospace', marginRight: 10 },
   entryFlagOn: { color: THEME.brickRed, fontWeight: 'bold' },
   entryIndex: { color: THEME.paper, fontSize: 12, fontFamily: 'monospace', fontWeight: 'bold', marginRight: 10 },
