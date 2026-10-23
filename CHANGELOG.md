@@ -4,6 +4,31 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 
 ## Unreleased
 
+### Added
+- Added interactive command bar with explicit `[SCAN LINK]` / `[SEARCH SPOTIFY]` button, inline `[×]` clear button, and real-time platform tag indicator.
+- Added platform detection chips and supported sources banner (`YOUTUBE`, `SPOTIFY`, `INSTAGRAM`, `X`, `TIKTOK`).
+- Added cyber-terminal media preview card with platform badge, framed thumbnail preview, and duration formatted as `mm:ss`.
+- Added batch selection controls (`[ALL]`, `[NONE]`, `[INVERT]`) for playlists and image carousels.
+- Added dual action workflow: instant single-tap `[YOINK NOW]` alongside `[+ ADD TO QUEUE]`.
+- Added visual ASCII progress bar (`[████████░░░░]`) with live ETA and smooth progress track for queue downloads.
+- Added per-job queue controls: `[RETRY]` for failed downloads and `[×]` to remove individual jobs.
+- Added prominent `[START EXTRACTION]` button when pending jobs are in queue.
+- Added tactile haptic vibration feedback on Android for button taps, selection toggles, and completion.
+- Added multi-line terminal console log with timestamps and a blinking terminal cursor effect.
+- Added `[RE-YOINK]` quick action on history items to reload past downloads.
+- Added Home, History, and Settings tabs without introducing a navigation dependency.
+- Added a local download history with source URLs, completion dates, titles, and available thumbnails.
+- Added native `cookies.txt` authentication for `yt-dlp`, stored in the app's private document directory.
+- Added editable Spotify and X proxy credentials in Settings with live integration status indicators.
+
+### Changed
+- Adopted Aspen's Portfolio Persona design system, replacing the old ocean-blue terminal aesthetic with a tactical operator dossier palette: Deep Space Blue (`#003049`), Navy (`#002337`), Brick Red (`#C1121F`), Molten Lava (`#780000`), Steel Blue (`#669BBC`), and Papaya Whip (`#FDF0D5`).
+- Redesigned header with tactical dossier version badge (`DOSSIER v1.2`) and operator subtitle (`ASPEN // MEDIA EXTRACTION SYSTEM`).
+- Updated status bar, segment buttons, input prompt, action buttons, progress bars, and console log to use high-contrast Persona styling with hard offset borders.
+- Improved contrast and readability for text placeholders using Azure Muted (`#84A9CB`).
+- X/Twitter extraction can now use either the configured API proxy or the user's own Netscape-format cookies.
+- Runtime credentials and authentication preferences now persist locally instead of requiring a rebuild after every change.
+
 ## [5.0.0] - 2026-10-07
 
 ### Added
