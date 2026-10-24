@@ -5,6 +5,13 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 ## Unreleased
 
 ### Added
+- Added official Persona-styled application icon with dynamic comic shards and halftone dots across all Android mipmap densities and assets.
+- Integrated `lucide-react-native` vector icons across navigation tabs, search/scan triggers, batch selectors, action buttons, queue management, and download history.
+- Added public Spotify metadata resolver via official oEmbed and open metadata, allowing single-track downloads without requiring Spotify developer API keys.
+- Added direct YouTube fallback for free-text search queries when Spotify credentials are not configured.
+- Added default download directory selector in Settings with persistent storage (`Downloads`, `Music`, `Movies`, `Pictures`).
+- Expanded supported sources list to include SoundCloud, Bandcamp, Reddit, Twitch, Vimeo, Facebook, Pinterest, and 1000+ direct web media sites.
+- Added in-app explanations for X/Twitter proxy, cookies.txt authentication, and Spotify API configuration.
 - Added interactive command bar with explicit `[SCAN LINK]` / `[SEARCH SPOTIFY]` button, inline `[×]` clear button, and real-time platform tag indicator.
 - Added platform detection chips and supported sources banner (`YOUTUBE`, `SPOTIFY`, `INSTAGRAM`, `X`, `TIKTOK`).
 - Added cyber-terminal media preview card with platform badge, framed thumbnail preview, and duration formatted as `mm:ss`.
@@ -21,7 +28,16 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 - Added native `cookies.txt` authentication for `yt-dlp`, stored in the app's private document directory.
 - Added editable Spotify and X proxy credentials in Settings with live integration status indicators.
 
+### Added
+- Integrated image thumbnail previews directly into each carousel item in the selection list, making it clear which image is being selected before downloading.
+- Automated media scanning broadcast (`MediaScannerConnection`) for newly downloaded videos and photos, ensuring immediate indexing into the system gallery.
+
 ### Changed
+- Updated queue status badge states: `[DOWN]` changed to `[YOINKING IT]` and `[DONE]` changed to `[YOINK!]`.
+- Reordered extraction layout: multi-item selection (`ITEMS` / `TRACKS` / `IMAGES`) now renders prominently above `FORMAT` and `QUALITY` selection rows.
+- Removed corner diagonal accent from all buttons (`PersonaButton`), delivering pure, clean Persona tactile cards with hard offset shadows.
+- Refactored Persona-style buttons (`PersonaButton`) with solid hard offset shadows, tactile pressed feedback, and strict mobile flex bounds to eliminate Android layout stretching.
+- Compacted `SYSTEM // READY` log panel with crisp white monospace text, high contrast timestamps, and tighter vertical bounds.
 - Adopted Aspen's Portfolio Persona design system, replacing the old ocean-blue terminal aesthetic with a tactical operator dossier palette: Deep Space Blue (`#003049`), Navy (`#002337`), Brick Red (`#C1121F`), Molten Lava (`#780000`), Steel Blue (`#669BBC`), and Papaya Whip (`#FDF0D5`).
 - Redesigned header with tactical dossier version badge (`DOSSIER v1.2`) and operator subtitle (`ASPEN // MEDIA EXTRACTION SYSTEM`).
 - Updated status bar, segment buttons, input prompt, action buttons, progress bars, and console log to use high-contrast Persona styling with hard offset borders.
@@ -41,6 +57,7 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 - Updated the embedded Kotlin bridge to bypass YouTube's recent `HTTP Error 403 / SABR` streaming blocks by spoofing Smart TV and Creator clients.
 
 ### Fixed
+- Fixed dead or expired short links (including `tt.site`) leaving the screen without download options: empty extractor results are now rejected with an actionable error, and `SYSTEM_LOG` displays the newest error instead of stale entries.
 - Fixed a major `[Errno 1] Operation not permitted` crash on Android 11+ by properly injecting `MANAGE_EXTERNAL_STORAGE` and explicit R/W permissions into the AndroidManifest.
 - Prevented the "success" message from being instantly wiped off the screen when downloads finish.
 
