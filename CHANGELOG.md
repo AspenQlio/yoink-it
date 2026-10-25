@@ -4,6 +4,9 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 
 ## Unreleased
 
+### Fixed
+- Fixed TikTok photo carousel extraction by omitting `--flat-playlist` on social platforms and enhancing `isImage` detection to correctly recognize photo slideshows and multi-image carousels.
+
 ### Added
 - Added official Persona-styled application icon with dynamic comic shards and halftone dots across all Android mipmap densities and assets.
 - Integrated `lucide-react-native` vector icons across navigation tabs, search/scan triggers, batch selectors, action buttons, queue management, and download history.
@@ -29,6 +32,8 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 - Added editable Spotify and X proxy credentials in Settings with live integration status indicators.
 
 ### Added
+- Native support for TikTok photo slide carousels (`/photo/` or `vt.tiktok.com`), bypassing yt-dlp's lack of photo extraction support via automated public resolver fallback.
+- Added `registerImageScan` native bridge method in Kotlin to allow external photo providers to feed directly into the high-performance multi-threaded image downloader.
 - Integrated image thumbnail previews directly into each carousel item in the selection list, making it clear which image is being selected before downloading.
 - Automated media scanning broadcast (`MediaScannerConnection`) for newly downloaded videos and photos, ensuring immediate indexing into the system gallery.
 

@@ -136,7 +136,10 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                     request.addOption("--cookies", cookiesPath.removePrefix("file://"))
                 }
                 request.addOption("--dump-json")
-                request.addOption("--flat-playlist")
+                val isSocialCarousel = url.contains("tiktok.com") || url.contains("instagram.com") || url.contains("tt.site")
+                if (!isSocialCarousel) {
+                    request.addOption("--flat-playlist")
+                }
                 request.addOption("--skip-download")
                 request.addOption("--ignore-errors")
                 request.addOption("--ignore-no-formats-error")
@@ -162,15 +165,17 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                     throw IOException(if (errMessage.isNotBlank()) errMessage else "No media found at this URL")
                 }
 
-                var isImage = true
-                for (json in jsons) {
-                    val type = json.optString("_type")
+                val hasVideoFormats = jsons.any { json ->
                     val formats = json.optJSONArray("formats")
-                    if (type == "url" || (formats != null && formats.length() > 0)) {
-                        isImage = false
-                        break
+                    if (formats == null) false else {
+                        (0 until formats.length()).any { i ->
+                            val ext = formats.optJSONObject(i)?.optString("ext")
+                            ext != null && !ImageCandidateSelector.isImageExt(ext) && ext != "m4a" && ext != "mp3"
+                        }
                     }
                 }
+                val parsedImages = ImageCandidateSelector.entryImages(jsons)
+                val isImage = !hasVideoFormats && parsedImages.isNotEmpty()
 
                 val title = jsons.firstOrNull()?.optString("title").orEmpty().ifBlank { "yoink" }
                 val thumbnail = jsons.firstOrNull()?.let(::bestThumbnail).orEmpty()
@@ -240,6 +245,36 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
             } catch (e: Exception) {
                 promise.reject("ANALYZE_ERROR", YtDlpErrors.userMessage(e.message), e)
             }
+        }
+    }
+
+    @ReactMethod
+    fun registerImageScan(url: String, title: String, entriesMap: ReadableArray, promise: Promise) {
+        try {
+            val entries = ArrayList<EntryImages>()
+            for (i in 0 until entriesMap.size()) {
+                val item = entriesMap.getMap(i) ?: continue
+                val index = item.getInt("index")
+                val variantsArray = item.getArray("variants")
+                val variants = ArrayList<ImageCandidate>()
+                if (variantsArray != null) {
+                    for (v in 0 until variantsArray.size()) {
+                        val variant = variantsArray.getMap(v) ?: continue
+                        val vUrl = variant.getString("url") ?: continue
+                        val ext = variant.getString("ext") ?: "jpg"
+                        val width = if (variant.hasKey("width")) variant.getInt("width") else 0
+                        val height = if (variant.hasKey("height")) variant.getInt("height") else 0
+                        variants.add(ImageCandidate(vUrl, ext, width, height))
+                    }
+                }
+                if (variants.isNotEmpty()) {
+                    entries.add(EntryImages(index, variants))
+                }
+            }
+            lastScan = ImageScan(url, title.ifBlank { "yoink" }, entries)
+            promise.resolve(true)
+        } catch (e: Exception) {
+            promise.reject("REGISTER_SCAN_ERROR", e.message, e)
         }
     }
 

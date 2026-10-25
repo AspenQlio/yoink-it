@@ -516,28 +516,34 @@ export default function App() {
     const proxyUrl = settings.proxyUrl;
     const apiKey = settings.proxyKey;
     
-    const res = await fetch(`${proxyUrl}?url=${encodeURIComponent(targetUrl)}`, {
-      headers: { 'x-api-key': apiKey }
-    });
-    
-    const data = await readJsonResponse(res, 'X proxy');
-    if (!res.ok || !data.success) {
-      throw new Error(data.error || 'Proxy failed to resolve Twitter link');
+    try {
+      const res = await fetch(`${proxyUrl}?url=${encodeURIComponent(targetUrl)}`, {
+        headers: apiKey ? { 'x-api-key': apiKey } : {}
+      });
+      
+      const data = await readJsonResponse(res, 'X proxy');
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Proxy failed to resolve Twitter link');
+      }
+      
+      return {
+        type: 'video',
+        count: 1,
+        isProxy: true,
+        thumbnail: data.thumbnail || '',
+        entries: [{
+          index: 0,
+          id: 'twitter_proxied',
+          title: data.title || 'X Video',
+          directUrl: data.download_url,
+          variants: [{ format_id: 'best', ext: 'mp4', resolution: 'proxy-best' }]
+        }]
+      };
+    } catch (_e) {
+      // Fallback to yt-dlp direct extraction if proxy fails or unauthorized
+      setStatus('> proxy fallback: extracting via yt-dlp...');
+      return await YoutubeDlModule.analyzeLink(targetUrl, cookieOptions());
     }
-    
-    return {
-      type: 'video',
-      count: 1,
-      isProxy: true,
-      thumbnail: data.thumbnail || '',
-      entries: [{
-        index: 0,
-        id: 'twitter_proxied',
-        title: data.title || 'X Video',
-        directUrl: data.download_url,
-        variants: [{ format_id: 'best', ext: 'mp4', resolution: 'proxy-best' }]
-      }]
-    };
   };
 
   const searchSpotify = async (query) => {
@@ -744,6 +750,61 @@ export default function App() {
     };
   };
 
+  const resolveTikTokViaTikwm = async (targetUrl) => {
+    const res = await fetch(`https://tikwm.com/api/?url=${encodeURIComponent(targetUrl)}`);
+    const json = await readJsonResponse(res, 'TikTok API');
+    if (json.code !== 0 || !json.data) {
+      throw new Error(json.msg || 'TikTok resolver failed');
+    }
+
+    const data = json.data;
+    const title = (data.title || 'TikTok Media').trim();
+
+    if (Array.isArray(data.images) && data.images.length > 0) {
+      const entries = data.images.map((imgUrl, idx) => ({
+        index: idx + 1,
+        thumbnail: imgUrl,
+        variants: [{
+          url: imgUrl,
+          ext: 'jpg',
+          width: 1080,
+          height: 1920
+        }]
+      }));
+
+      // Register with native engine so downloadImages can save them directly
+      await YoutubeDlModule.registerImageScan(targetUrl, title, entries);
+
+      return {
+        type: 'image',
+        count: entries.length,
+        title,
+        thumbnail: entries[0].thumbnail,
+        entries
+      };
+    }
+
+    // Single video fallback via TikWM if needed
+    const videoUrl = data.play || data.wmplay || data.hdplay;
+    if (videoUrl) {
+      return {
+        type: 'video',
+        count: 1,
+        title,
+        thumbnail: data.cover || '',
+        entries: [{
+          index: 1,
+          title,
+          duration: data.duration || 0,
+          url: videoUrl,
+          thumbnail: data.cover || ''
+        }]
+      };
+    }
+
+    throw new Error('No downloadable media found in TikTok link');
+  };
+
   const analyzeUrl = async (rawUrl) => {
     Keyboard.dismiss();
     setIsLoading(true);
@@ -752,7 +813,9 @@ export default function App() {
     
     try {
       let targetUrl = rawUrl.trim();
-      if (!targetUrl.startsWith('http')) {
+      if (targetUrl.startsWith('/status/')) {
+        targetUrl = 'https://x.com' + targetUrl;
+      } else if (!targetUrl.startsWith('http')) {
         if (targetUrl.startsWith('://')) {
           targetUrl = 'https' + targetUrl;
         } else if ((targetUrl.includes('.') || targetUrl.includes('/')) && !targetUrl.includes(' ')) {
@@ -801,6 +864,15 @@ export default function App() {
       } else if ((targetUrl.includes('twitter.com') || targetUrl.includes('x.com')) && settings.xMode === 'proxy' && settings.proxyUrl) {
         setStatus('> restricted X/Twitter detected. resolving via proxy...');
         result = await resolveTwitterViaProxy(targetUrl);
+      } else if (targetUrl.includes('tiktok.com')) {
+        setStatus('> tiktok detected. analyzing media...');
+        try {
+          result = await YoutubeDlModule.analyzeLink(targetUrl, cookieOptions());
+        } catch (_ytError) {
+          // TikTok photo slides are unsupported by yt-dlp; fallback to TikWM resolver
+          setStatus('> photo carousel detected. resolving via tiktok parser...');
+          result = await resolveTikTokViaTikwm(targetUrl);
+        }
       } else {
         result = await YoutubeDlModule.analyzeLink(targetUrl, cookieOptions());
       }

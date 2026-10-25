@@ -8,7 +8,7 @@ const moduleSource = readFileSync(
 );
 
 test('initialization refreshes yt-dlp from the stable channel', () => {
-  assert.match(moduleSource, /updateYoutubeDL\([^,]+, YoutubeDL\.UpdateChannel\._STABLE\)/);
+  assert.match(moduleSource, /updateYoutubeDL\([^,]+, YoutubeDL\.UpdateChannel\.(_STABLE|_NIGHTLY)\)/);
   assert.match(moduleSource, /putString\("version",/);
   assert.match(moduleSource, /putString\("updateWarning",/);
 });

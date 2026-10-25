@@ -33,4 +33,12 @@ class YtDlpErrorsTest {
             message
         )
     }
+
+    @Test
+    fun `expired short link becomes actionable`() {
+        assertEquals(
+            "This link is invalid, expired, or no longer exposes downloadable media. Copy a new share link and try again.",
+            YtDlpErrors.userMessage("No downloadable media found; this link may be expired or deleted")
+        )
+    }
 }
