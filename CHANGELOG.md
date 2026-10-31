@@ -2,7 +2,7 @@
 
 All notable changes to YoinkIt are recorded here before they are grouped into a release.
 
-## Unreleased
+## [15.0.0] - 2026-10-31
 
 ### Fixed
 - Fixed black screen preview and playback failure when uploading downloaded videos to Instagram Stories and Reels by prioritizing H.264 (AVC) and AAC formats over AV1/VP9 codecs and enabling automatic MP4 recoding with `VideoFormatSelector`.
@@ -32,7 +32,6 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 - Added native `cookies.txt` authentication for `yt-dlp`, stored in the app's private document directory.
 - Added editable Spotify and X proxy credentials in Settings with live integration status indicators.
 
-### Added
 - Native support for TikTok photo slide carousels (`/photo/` or `vt.tiktok.com`), bypassing yt-dlp's lack of photo extraction support via automated public resolver fallback.
 - Added `registerImageScan` native bridge method in Kotlin to allow external photo providers to feed directly into the high-performance multi-threaded image downloader.
 - Integrated image thumbnail previews directly into each carousel item in the selection list, making it clear which image is being selected before downloading.
