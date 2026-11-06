@@ -103,11 +103,9 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                         "low" -> request.addOption("--audio-quality", "9")
                     }
                 } else {
-                    when (quality) {
-                        "high" -> request.addOption("-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best")
-                        "medium" -> request.addOption("-f", "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best")
-                        "low" -> request.addOption("-f", "bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480][ext=mp4]/best")
-                    }
+                    request.addOption("-S", VideoFormatSelector.FORMAT_SORT)
+                    request.addOption("--recode-video", "mp4")
+                    request.addOption("-f", VideoFormatSelector.formatFor(quality))
                 }
 
                 YoutubeDL.getInstance().execute(request) { progress, etaInSeconds, line ->

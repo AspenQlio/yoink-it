@@ -5,6 +5,7 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 ## Unreleased
 
 ### Fixed
+- Fixed black screen preview and playback failure when uploading downloaded videos to Instagram Stories and Reels by prioritizing H.264 (AVC) and AAC formats over AV1/VP9 codecs and enabling automatic MP4 recoding with `VideoFormatSelector`.
 - Fixed TikTok photo carousel extraction by omitting `--flat-playlist` on social platforms and enhancing `isImage` detection to correctly recognize photo slideshows and multi-image carousels.
 
 ### Added
