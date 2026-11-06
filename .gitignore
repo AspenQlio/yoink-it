@@ -16,3 +16,10 @@ android/app/.cxx/
 *.apk
 .env
 proxy-worker/wrangler.toml
+
+# artefactos de build local
+apks/
+*.aab
+*.log
+android/build_output.log
+ios/Pods/
