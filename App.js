@@ -864,15 +864,9 @@ export default function App() {
       } else if ((targetUrl.includes('twitter.com') || targetUrl.includes('x.com')) && settings.xMode === 'proxy' && settings.proxyUrl) {
         setStatus('> restricted X/Twitter detected. resolving via proxy...');
         result = await resolveTwitterViaProxy(targetUrl);
-      } else if (targetUrl.includes('tiktok.com')) {
-        setStatus('> tiktok detected. analyzing media...');
-        try {
-          result = await YoutubeDlModule.analyzeLink(targetUrl, cookieOptions());
-        } catch (_ytError) {
-          // TikTok photo slides are unsupported by yt-dlp; fallback to TikWM resolver
-          setStatus('> photo carousel detected. resolving via tiktok parser...');
-          result = await resolveTikTokViaTikwm(targetUrl);
-        }
+      } else if (targetUrl.includes('tiktok.com') || targetUrl.includes('tt.site')) {
+        setStatus('> tiktok detected. resolving via tiktok parser...');
+        result = await resolveTikTokViaTikwm(targetUrl);
       } else {
         result = await YoutubeDlModule.analyzeLink(targetUrl, cookieOptions());
       }

@@ -5,6 +5,7 @@ All notable changes to YoinkIt are recorded here before they are grouped into a 
 ## [15.0.0] - 2026-10-31
 
 ### Fixed
+- Fixed TikTok link scanning freeze by routing TikTok URLs directly to the high-speed TikWM resolver instead of invoking yt-dlp, eliminating native execution timeouts and deadlocks.
 - Fixed black screen preview and playback failure when uploading downloaded videos to Instagram Stories and Reels by prioritizing H.264 (AVC) and AAC formats over AV1/VP9 codecs and enabling automatic MP4 recoding with `VideoFormatSelector`.
 - Fixed TikTok photo carousel extraction by omitting `--flat-playlist` on social platforms and enhancing `isImage` detection to correctly recognize photo slideshows and multi-image carousels.
 
