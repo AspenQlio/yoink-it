@@ -1,6 +1,6 @@
 {
   "name": "yoink-it",
-  "version": "1.0.0",
+  "version": "15.0.0",
   "main": "index.js",
   "dependencies": {
     "expo": "~57.0.26",
