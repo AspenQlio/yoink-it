@@ -74,7 +74,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 }
 
                 val request = YoutubeDLRequest(url)
-                request.addOption("--extractor-args", "youtube:player_client=android,web,tv")
+                request.addOption("--extractor-args", "youtube:player_client=web,mweb,ios")
                 request.addOption("--force-ipv4")
                 request.addOption("--rm-cache-dir")
                 if (!cookiesPath.isNullOrBlank()) {
@@ -105,6 +105,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                 } else {
                     request.addOption("-S", VideoFormatSelector.FORMAT_SORT)
                     request.addOption("--recode-video", "mp4")
+                    request.addOption("--postprocessor-args", "ffmpeg:-c:v libx264 -c:a aac -movflags +faststart")
                     request.addOption("-f", VideoFormatSelector.formatFor(quality))
                 }
 
@@ -127,7 +128,7 @@ class YoutubeDlModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
             try {
                 val cookiesPath = if (options.hasKey("cookies")) options.getString("cookies") else null
                 val request = YoutubeDLRequest(url)
-                request.addOption("--extractor-args", "youtube:player_client=android,web,tv")
+                request.addOption("--extractor-args", "youtube:player_client=web,mweb,ios")
                 request.addOption("--force-ipv4")
                 request.addOption("--rm-cache-dir")
                 if (!cookiesPath.isNullOrBlank()) {
